@@ -71,18 +71,36 @@ window.closeModal          = closeModal;
 // ─── INIT ────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   initDarkMode();
-  initImageUpload(); // attach upload-zone listeners immediately
-  initModalClose();  // attach modal close listeners immediately
+  initImageUpload();
+  initModalClose();
 
-  onAuthChange(async (user) => {
+  // One-time auth check — unsubscribe after first resolution to avoid
+  // duplicate listeners if auth state fires multiple times.
+  let adminInitialized = false;
+  const unsubAuth = onAuthChange(async (user) => {
+    // ── NOT LOGGED IN ──────────────────────────────────────────────────
     if (!user) {
       window.location.href = "login.html?redirect=admin.html";
       return;
     }
 
-    const profile = await getUserProfile(user.uid);
+    // ── ALREADY INITIALIZED (auth fired again after first load) ────────
+    if (adminInitialized) return;
 
-    if (!profile?.isAdmin) {
+    // ── VERIFY ADMIN STATUS ────────────────────────────────────────────
+    let profile = null;
+    try {
+      profile = await getUserProfile(user.uid);
+    } catch (err) {
+      console.error("Profile fetch error:", err);
+      // Treat fetch failure as non-admin — never expose the dashboard
+      window.location.href = "login.html?redirect=admin.html";
+      return;
+    }
+
+    if (!profile || profile.isAdmin !== true) {
+      // Logged in but NOT admin — show access denied, never show shell
+      document.getElementById("admin-loading").style.display = "none";
       document.body.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
           min-height:100svh;font-family:system-ui;text-align:center;padding:2rem;
@@ -96,17 +114,22 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Show admin shell
-    document.getElementById("admin-shell").style.display  = "flex";
-    document.getElementById("admin-loading").style.display = "none";
-    document.getElementById("admin-user-name").textContent = profile.name || user.email;
+    // ── CONFIRMED ADMIN — show dashboard ──────────────────────────────
+    adminInitialized = true;
+
+    const shell   = document.getElementById("admin-shell");
+    const loading = document.getElementById("admin-loading");
+    if (loading) loading.style.display = "none";
+    if (shell)   shell.classList.add("is-visible"); // uses CSS .is-visible { display:flex }
+
+    const nameEl = document.getElementById("admin-user-name");
+    if (nameEl) nameEl.textContent = profile.name || user.email;
 
     initNav();
     initProductForm();
     initProductSearch();
     loadDashboard();
 
-    // Logout button
     const logoutBtn = document.getElementById("admin-logout-btn");
     if (logoutBtn && !logoutBtn.dataset.attached) {
       logoutBtn.dataset.attached = "true";
