@@ -39,42 +39,8 @@ import {
   initDarkMode,
   initStickyHeader,
 } from "./utils.js";
+import { addToWishlist, removeFromWishlist, getWishlistItems } from "./wishlist.js";
 import { renderProductCard, bindProductCardEvents, getProductById } from "./products.js";
-
-// ─── WISHLIST FUNCTIONS ───────────────────────────────────────────────────────
-export async function addToWishlist(productId) {
-  const user = auth.currentUser;
-  if (!user) {
-    showToast("Please login to add to wishlist", "error");
-    return;
-  }
-  await setDoc(
-    doc(db, "wishlist", user.uid, "items", productId),
-    { productId, addedAt: new Date() }
-  );
-  showToast("Added to wishlist ♥");
-}
-
-export async function removeFromWishlist(productId) {
-  const user = auth.currentUser;
-  if (!user) return;
-  await deleteDoc(doc(db, "wishlist", user.uid, "items", productId));
-  showToast("Removed from wishlist");
-}
-
-export async function isWishlisted(productId) {
-  const user = auth.currentUser;
-  if (!user) return false;
-  const snap = await getDoc(doc(db, "wishlist", user.uid, "items", productId));
-  return snap.exists();
-}
-
-export async function getWishlistItems() {
-  const user = auth.currentUser;
-  if (!user) return [];
-  const snap = await getDocs(collection(db, "wishlist", user.uid, "items"));
-  return snap.docs.map((d) => d.data().productId);
-}
 
 // ─── INIT PROFILE PAGE ───────────────────────────────────────────────────────
 export function initProfilePage() {
