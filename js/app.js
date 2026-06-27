@@ -29,7 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // ── UI init runs FIRST and independently — not affected by Firebase/import errors ──
   initDarkMode();
   initStickyHeader();
-  initMobileNav();   // hamburger must work even if product fetch fails
+  // initMobileNav() moved to inline script in index.html — runs independently
+  // of ES module imports so menu always works even if Firebase/products.js fails
   initBackToTop();
   initScrollReveal();
 
