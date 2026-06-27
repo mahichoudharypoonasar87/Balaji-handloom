@@ -6,9 +6,12 @@
 
 /* ─── ADMIN LAYOUT ──────────────────────────────────────────────────────────── */
 .admin-shell {
-  display: flex;
+  display: none; /* JS sets to flex ONLY after admin is verified */
   min-height: 100svh;
   background: var(--clr-bg);
+}
+.admin-shell.is-visible {
+  display: flex;
 }
 
 /* ─── SIDEBAR ───────────────────────────────────────────────────────────────── */
