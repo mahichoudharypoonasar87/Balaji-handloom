@@ -119,9 +119,13 @@ export function initLoginPage() {
   const togglePass = document.getElementById("toggle-password");
   const passInput = document.getElementById("password");
 
-  // Redirect if already logged in
-  onAuthChange((user) => {
-    if (user) {
+  // Redirect ONLY after Firebase has fully resolved the auth state (one-time check).
+  // Using onAuthChange (persistent listener) caused a race condition:
+  // Firebase would first emit null, then the cached user — triggering a redirect
+  // even when the user was actively trying to log in or had just logged out.
+  // authStateReady() resolves exactly once with the current persisted session.
+  auth.authStateReady().then(() => {
+    if (auth.currentUser) {
       const redirect = new URLSearchParams(window.location.search).get("redirect") || "index.html";
       window.location.href = redirect;
     }
