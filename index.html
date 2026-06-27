@@ -24,9 +24,9 @@
   <meta name="theme-color" content="#D4AF37" />
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/style.css?v=2a4209e" />
-  <link rel="stylesheet" href="css/animation.css?v=2a4209e" />
-  <link rel="stylesheet" href="css/responsive.css?v=2a4209e" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/animation.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
 </head>
 <body>
 
@@ -493,7 +493,46 @@
 <button class="back-to-top" id="back-to-top" aria-label="Back to top" title="Back to top">↑</button>
 
 <!-- ─── SCRIPTS ───────────────────────────────────────────────────────────── -->
-<script type="module" src="js/app.js?v=2a4209e"></script>
+
+<!-- Menu script: plain (non-module) so it NEVER fails due to Firebase/import errors -->
+<script>
+(function () {
+  var hamburger = document.getElementById("hamburger");
+  var mobileNav = document.getElementById("mobile-nav");
+  var overlay   = document.getElementById("mobile-overlay");
+  var closeBtn  = document.getElementById("mobile-close");
+
+  function openNav() {
+    mobileNav && mobileNav.classList.add("open");
+    overlay   && overlay.classList.add("show");
+    hamburger && hamburger.classList.add("open");
+    hamburger && hamburger.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+  function closeNav() {
+    mobileNav && mobileNav.classList.remove("open");
+    overlay   && overlay.classList.remove("show");
+    hamburger && hamburger.classList.remove("open");
+    hamburger && hamburger.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+
+  hamburger && hamburger.addEventListener("click", openNav);
+  closeBtn  && closeBtn.addEventListener("click", closeNav);
+  overlay   && overlay.addEventListener("click", closeNav);
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeNav();
+  });
+
+  // Close when any nav link is tapped
+  document.querySelectorAll(".mobile-nav__link").forEach(function(link) {
+    link.addEventListener("click", closeNav);
+  });
+})();
+</script>
+
+<script type="module" src="js/app.js"></script>
 
 </body>
 </html>
