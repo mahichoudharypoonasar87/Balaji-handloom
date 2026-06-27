@@ -187,21 +187,23 @@ input, textarea, select { font: inherit; }
 .nav__logo {
   display: flex;
   flex-direction: column;
-  line-height: 1.1;
+  line-height: 1.15;
   flex-shrink: 0;
+  text-decoration: none;
 }
 .nav__logo-main {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--clr-primary);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 .nav__logo-sub {
   font-size: var(--text-xs);
-  color: var(--clr-gold);
-  letter-spacing: 0.12em;
+  color: var(--clr-gold-dark);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
 .nav__links {
@@ -359,7 +361,7 @@ input, textarea, select { font: inherit; }
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--clr-primary-dark) 0%, var(--clr-primary) 40%, #4A1010 70%, #1A0505 100%);
+  background: linear-gradient(135deg, #1a0a00 0%, #3d1a00 30%, #6b2c00 60%, #2a0d0d 100%);
   padding-top: var(--header-h);
 }
 
@@ -372,16 +374,16 @@ input, textarea, select { font: inherit; }
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(circle at 20% 80%, rgba(201,149,42,0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(201,149,42,0.1) 0%, transparent 50%);
+    radial-gradient(circle at 20% 80%, rgba(255,200,80,0.25) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255,180,60,0.18) 0%, transparent 50%);
   animation: bgPulse 8s ease-in-out infinite alternate;
 }
 .hero__bg-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(201,149,42,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(201,149,42,0.05) 1px, transparent 1px);
+    linear-gradient(rgba(255,200,80,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,200,80,0.08) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -396,9 +398,9 @@ input, textarea, select { font: inherit; }
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--clr-gold-light);
+  color: #FFD97A;
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   margin-bottom: var(--space-6);
@@ -408,30 +410,33 @@ input, textarea, select { font: inherit; }
 .hero__eyebrow::after {
   content: "";
   width: 32px; height: 1px;
-  background: var(--clr-gold);
-  opacity: 0.6;
+  background: #FFD97A;
+  opacity: 0.8;
 }
 
 .hero__title {
   font-family: var(--font-display);
   font-size: clamp(var(--text-4xl), 8vw, var(--text-7xl));
-  font-weight: 300;
+  font-weight: 600;
   line-height: 1.05;
-  color: #FFF8EE;
+  color: #FFFFFF;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.5);
   margin-bottom: var(--space-6);
   animation: fadeInUp 0.8s 0.4s both;
 }
 .hero__title em {
   font-style: italic;
-  color: var(--clr-gold-light);
+  color: #FFD97A;
+  text-shadow: 0 2px 24px rgba(255,200,80,0.4);
 }
 
 .hero__desc {
   font-size: var(--text-lg);
-  color: rgba(255,248,238,0.75);
+  color: rgba(255,255,255,0.92);
   line-height: 1.7;
   max-width: 520px;
   margin-bottom: var(--space-10);
+  text-shadow: 0 1px 8px rgba(0,0,0,0.4);
   animation: fadeInUp 0.8s 0.6s both;
 }
 
