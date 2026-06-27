@@ -1,0 +1,25 @@
+# Node (if any tools are added locally)
+node_modules/
+npm-debug.log*
+
+# Environment files — NEVER commit Firebase keys
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build output
+dist/
+.vercel/
+
+# Logs
+*.log

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Product details — Shree Panchmukhi Balaji Handloom" />
+  <title>Product | Balaji Handloom</title>
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#8B1A1A" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/animation.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+
+  <style>
+    .product-page-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-12);
+      align-items: start;
+      margin-bottom: var(--space-16);
+    }
+    .product-gallery { position: sticky; top: calc(var(--header-h) + var(--space-6)); }
+    .product-main-img-wrap {
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      aspect-ratio: 3/4;
+      background: var(--clr-bg-2);
+      cursor: zoom-in;
+      position: relative;
+    }
+    .product-main-img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+    .product-main-img-wrap:hover .product-main-img { transform: scale(1.05); }
+    .product-thumbnails {
+      display: flex;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .product-thumb {
+      width: 80px; height: 80px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all var(--transition-base);
+      opacity: 0.7;
+    }
+    .product-thumb.active,
+    .product-thumb:hover {
+      border-color: var(--clr-primary);
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    .product-info { padding: var(--space-2) 0; }
+    .product-badge {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      font-size: var(--text-xs); font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--clr-gold); margin-bottom: var(--space-3);
+    }
+    .product-title {
+      font-family: var(--font-display);
+      font-size: clamp(var(--text-2xl), 4vw, var(--text-4xl));
+      font-weight: 600; line-height: 1.1;
+      color: var(--clr-text); margin-bottom: var(--space-4);
+    }
+    .product-pricing {
+      display: flex; align-items: baseline; gap: var(--space-4);
+      margin: var(--space-5) 0;
+    }
+    .product-price {
+      font-family: var(--font-display);
+      font-size: var(--text-4xl);
+      font-weight: 700; color: var(--clr-primary);
+    }
+    .product-mrp {
+      font-size: var(--text-xl);
+      color: var(--clr-text-muted);
+      text-decoration: line-through;
+    }
+    .product-saved {
+      font-size: var(--text-sm); font-weight: 600;
+      color: var(--clr-success);
+      background: rgba(45,106,79,0.1);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+    }
+    .product-divider {
+      height: 1px; background: var(--clr-border);
+      margin: var(--space-5) 0;
+    }
+    .size-label {
+      font-size: var(--text-sm); font-weight: 600;
+      color: var(--clr-text-2); margin-bottom: var(--space-3);
+      display: flex; align-items: center; gap: var(--space-3);
+    }
+    .size-options { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-6); }
+    .size-btn {
+      padding: var(--space-2) var(--space-4);
+      border: 1.5px solid var(--clr-border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm); font-weight: 500;
+      color: var(--clr-text); background: transparent;
+      cursor: pointer; transition: all var(--transition-fast);
+    }
+    .size-btn:hover { border-color: var(--clr-primary); color: var(--clr-primary); }
+    .size-btn.selected {
+      border-color: var(--clr-primary);
+      background: var(--clr-primary); color: #fff;
+    }
+    .qty-row { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-6); }
+    .qty-wrap { display: flex; align-items: center; gap: var(--space-3); border: 1.5px solid var(--clr-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
+    .product-actions { display: flex; flex-direction: column; gap: var(--space-3); }
+    .product-actions .btn { width: 100%; font-size: var(--text-base); padding: var(--space-4); }
+    .product-meta { margin-top: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3); }
+    .product-meta-item { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-sm); color: var(--clr-text-2); }
+    .product-meta-icon { font-size: 1.1rem; }
+    .share-row { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-5); }
+    .share-label { font-size: var(--text-sm); color: var(--clr-text-muted); }
+    .share-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1.5px solid var(--clr-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; cursor: pointer; color: var(--clr-text-2);
+      transition: all var(--transition-fast);
+    }
+    .share-btn:hover { border-color: var(--clr-primary); color: var(--clr-primary); background: rgba(139,26,26,0.05); }
+    .product-desc-section { margin-top: var(--space-16); }
+    .tab-row { display: flex; gap: 0; border-bottom: 2px solid var(--clr-border); margin-bottom: var(--space-8); }
+    .tab-btn {
+      padding: var(--space-3) var(--space-6);
+      font-size: var(--text-sm); font-weight: 600;
+      color: var(--clr-text-muted); background: transparent; border: none;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+      cursor: pointer; transition: all var(--transition-base);
+    }
+    .tab-btn.active { color: var(--clr-primary); border-bottom-color: var(--clr-primary); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeInUp 0.3s ease; }
+    .tab-panel p { font-size: var(--text-base); color: var(--clr-text-2); line-height: 1.8; }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER (same as index.html) ──────────────────────────────────────── -->
+<header class="header" role="banner">
+  <div class="container">
+    <nav class="nav" aria-label="Main navigation">
+      <a href="index.html" class="nav__logo" aria-label="Home">
+        <span class="nav__logo-main">🛕 Balaji Handloom</span>
+        <span class="nav__logo-sub">Poonasar, Rajasthan</span>
+      </a>
+      <div class="nav__actions">
+        <button class="nav__icon-btn theme-toggle" aria-label="Toggle dark mode">🌙</button>
+        <a href="profile.html#wishlist" class="nav__icon-btn" aria-label="Wishlist">♡<span class="wishlist-badge"></span></a>
+        <a href="cart.html" class="nav__icon-btn" aria-label="Cart">🛒<span class="cart-badge"></span></a>
+        <a href="profile.html" class="nav__icon-btn" id="nav-profile" style="display:none">👤</a>
+        <a href="login.html" class="nav__icon-btn" id="nav-login">🔑</a>
+        <button class="nav__icon-btn" id="nav-logout" style="display:none">🚪</button>
+        <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── BREADCRUMB ────────────────────────────────────────────────────────── -->
+<div class="page-top" style="padding-bottom:var(--space-4);">
+  <div class="container">
+    <nav aria-label="Breadcrumb" style="font-size:var(--text-sm); color:var(--clr-text-muted);">
+      <a href="index.html" style="color:var(--clr-text-muted);">Home</a>
+      <span aria-hidden="true"> / </span>
+      <span id="breadcrumb-cat" style="color:var(--clr-text-muted);"></span>
+      <span aria-hidden="true"> / </span>
+      <span id="breadcrumb-name" style="color:var(--clr-text);" aria-current="page"></span>
+    </nav>
+  </div>
+</div>
+
+<!-- ─── PRODUCT PAGE ──────────────────────────────────────────────────────── -->
+<main id="main" style="padding-bottom: var(--space-20);">
+  <div class="container">
+
+    <!-- Loading State -->
+    <div id="product-loading" style="display:flex; justify-content:center; padding:var(--space-20);">
+      <div class="spinner spinner--lg"></div>
+    </div>
+
+    <!-- Product Content (hidden until loaded) -->
+    <div id="product-content" style="display:none;">
+      <div class="product-page-layout">
+
+        <!-- Gallery -->
+        <div class="product-gallery">
+          <div class="product-main-img-wrap" id="main-img-wrap">
+            <img id="main-img" class="product-main-img" src="" alt="" width="600" height="800" />
+            <span class="discount-badge" id="product-discount-badge" style="display:none;"></span>
+          </div>
+          <div class="product-thumbnails" id="product-thumbnails" role="list" aria-label="Product images"></div>
+        </div>
+
+        <!-- Info -->
+        <div class="product-info">
+          <div class="product-badge">
+            <span>⭐</span>
+            <span id="product-category"></span>
+          </div>
+
+          <h1 class="product-title" id="product-title"></h1>
+
+          <div class="product-card__rating" id="product-rating"></div>
+
+          <div class="product-pricing">
+            <span class="product-price" id="product-price"></span>
+            <span class="product-mrp" id="product-mrp" style="display:none;"></span>
+            <span class="product-saved" id="product-saved" style="display:none;"></span>
+          </div>
+
+          <p id="product-short-desc" style="color:var(--clr-text-2); font-size:var(--text-base); line-height:1.7; margin-bottom:var(--space-4);"></p>
+
+          <div class="product-divider" aria-hidden="true"></div>
+
+          <!-- Size Selection -->
+          <div id="size-section" style="display:none;">
+            <p class="size-label">
+              Select Size
+              <a href="#size-guide" style="font-size:var(--text-xs); color:var(--clr-primary); font-weight:400;">Size Guide</a>
+            </p>
+            <div class="size-options" id="size-options" role="group" aria-label="Size selection"></div>
+            <div class="product-divider" aria-hidden="true"></div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="qty-row">
+            <label for="qty-input" style="font-size:var(--text-sm); font-weight:600; color:var(--clr-text-2);">Quantity</label>
+            <div class="qty-wrap">
+              <button class="qty-btn" id="qty-dec" aria-label="Decrease quantity">−</button>
+              <input
+                type="number"
+                id="qty-input"
+                value="1" min="1" max="10"
+                style="width:40px; text-align:center; border:none; background:transparent; font-size:var(--text-lg); font-weight:600; color:var(--clr-text); outline:none;"
+                aria-label="Quantity"
+              />
+              <button class="qty-btn" id="qty-inc" aria-label="Increase quantity">+</button>
+            </div>
+            <p id="product-stock" style="font-size:var(--text-sm); color:var(--clr-success); font-weight:500;"></p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="product-actions">
+            <button class="btn btn--primary btn--lg" id="add-to-cart-btn" disabled>
+              <span>🛒</span> Add to Cart
+            </button>
+            <button class="btn btn--outline btn--lg" id="wishlist-btn-main" aria-label="Add to wishlist">
+              <span>♡</span> Add to Wishlist
+            </button>
+          </div>
+
+          <!-- Product Meta -->
+          <div class="product-meta">
+            <div class="product-divider" aria-hidden="true"></div>
+            <div class="product-meta-item">
+              <span class="product-meta-icon">🚚</span>
+              <span>Free delivery on orders above ₹999</span>
+            </div>
+            <div class="product-meta-item">
+              <span class="product-meta-icon">↩️</span>
+              <span>7-day easy returns</span>
+            </div>
+            <div class="product-meta-item">
+              <span class="product-meta-icon">✅</span>
+              <span>100% authentic handloom — weaver certified</span>
+            </div>
+            <div class="product-meta-item">
+              <span class="product-meta-icon">🔒</span>
+              <span>Secure WhatsApp checkout</span>
+            </div>
+          </div>
+
+          <!-- Share -->
+          <div class="share-row">
+            <span class="share-label">Share:</span>
+            <button class="share-btn" id="share-wa" title="Share on WhatsApp" aria-label="Share on WhatsApp">📱</button>
+            <button class="share-btn" id="share-copy" title="Copy link" aria-label="Copy link">🔗</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description / Details Tabs -->
+      <div class="product-desc-section">
+        <div class="tab-row" role="tablist" aria-label="Product information tabs">
+          <button class="tab-btn active" role="tab" data-tab="description" aria-selected="true" id="tab-description">Description</button>
+          <button class="tab-btn" role="tab" data-tab="care" aria-selected="false" id="tab-care">Care Instructions</button>
+          <button class="tab-btn" role="tab" data-tab="delivery" aria-selected="false" id="tab-delivery">Delivery & Returns</button>
+        </div>
+
+        <div class="tab-panel active" role="tabpanel" id="panel-description" aria-labelledby="tab-description">
+          <p id="product-full-desc" style="white-space: pre-wrap;"></p>
+        </div>
+
+        <div class="tab-panel" role="tabpanel" id="panel-care" aria-labelledby="tab-care">
+          <p>
+            🧺 <strong>Washing:</strong> Gentle hand wash in cold water only. Do not machine wash.<br/><br/>
+            🌿 <strong>Drying:</strong> Dry in shade. Avoid direct sunlight to preserve colour.<br/><br/>
+            🧴 <strong>Detergent:</strong> Use mild detergent suitable for delicate fabrics.<br/><br/>
+            🔥 <strong>Ironing:</strong> Iron on low heat from the reverse side.<br/><br/>
+            🗄️ <strong>Storage:</strong> Store in a cool, dry place. Use muslin cloth for wrapping.
+          </p>
+        </div>
+
+        <div class="tab-panel" role="tabpanel" id="panel-delivery" aria-labelledby="tab-delivery">
+          <p>
+            🚚 <strong>Delivery Time:</strong> 3–7 business days across India.<br/><br/>
+            💸 <strong>Free Delivery:</strong> On all orders above ₹999.<br/><br/>
+            🔄 <strong>Returns:</strong> 7-day return policy for damaged or wrong items.<br/><br/>
+            📦 <strong>Packaging:</strong> Securely packed in eco-friendly packaging.<br/><br/>
+            📞 <strong>Tracking:</strong> WhatsApp updates from our end after dispatch.
+          </p>
+        </div>
+      </div>
+
+      <!-- Related Products -->
+      <div style="margin-top: var(--space-16);">
+        <header class="section-header" style="text-align:left;">
+          <span class="section-eyebrow">You may also like</span>
+          <h2 class="section-title" style="font-size:var(--text-3xl);">Related <em>Products</em></h2>
+          <div class="section-divider" style="margin-left:0;"></div>
+        </header>
+        <div class="product-grid" id="related-products" aria-label="Related products"></div>
+      </div>
+    </div>
+
+    <!-- Not Found -->
+    <div id="product-not-found" style="display:none; text-align:center; padding:var(--space-20);">
+      <p style="font-size:4rem; margin-bottom:var(--space-4);">🔍</p>
+      <h2 style="font-family:var(--font-display); font-size:var(--text-3xl); margin-bottom:var(--space-4);">Product Not Found</h2>
+      <p style="color:var(--clr-text-muted); margin-bottom:var(--space-8);">This product may have been removed or the link is incorrect.</p>
+      <a href="index.html" class="btn btn--primary btn--lg">Back to Home</a>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="js/product.js"></script>
+</body>
+</html>
