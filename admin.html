@@ -57,7 +57,7 @@
           <p style="font-size:var(--text-xs);color:rgba(255,248,238,0.7);" id="admin-user-name"></p>
         </div>
       </div>
-      <button class="admin-nav__item" onclick="import('./js/auth.js').then(m=>m.logout()).then(()=>window.location.href='login.html')" aria-label="Logout">
+      <button class="admin-nav__item" id="admin-logout-btn" aria-label="Logout">
         <span class="admin-nav__icon">🚪</span>
         <span class="admin-nav__label">Logout</span>
       </button>
@@ -332,9 +332,5 @@
 </div>
 
 <script type="module" src="js/admin.js"></script>
-<script type="module">
-  import { initDarkMode } from "./js/utils.js";
-  initDarkMode();
-</script>
 </body>
 </html>
