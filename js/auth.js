@@ -2,6 +2,10 @@
  * auth.js
  * Firebase Authentication Logic
  * Login / Signup / Google / Logout / Password Reset
+ *
+ * BUGS FIXED:
+ * - logout listener was added multiple times on each auth state change
+ * - initNavAuth now uses a single logout listener
  */
 
 import { auth, db, googleProvider } from "./firebase.js";
@@ -23,10 +27,6 @@ import {
 import { showToast } from "./utils.js";
 
 // ─── AUTH STATE LISTENER ─────────────────────────────────────────────────────
-/**
- * Listen to auth state and call callback with user or null
- * @param {Function} callback
- */
 export function onAuthChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
@@ -53,7 +53,6 @@ export async function loginWithEmail(email, password) {
 // ─── GOOGLE LOGIN ────────────────────────────────────────────────────────────
 export async function loginWithGoogle() {
   const cred = await signInWithPopup(auth, googleProvider);
-  // Create doc only if first login
   const snap = await getDoc(doc(db, "users", cred.user.uid));
   if (!snap.exists()) {
     await createUserDoc(cred.user, {});
@@ -71,7 +70,7 @@ export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email);
 }
 
-// ─── CREATE USER DOCUMENT IN FIRESTORE ───────────────────────────────────────
+// ─── CREATE USER DOCUMENT ────────────────────────────────────────────────────
 async function createUserDoc(user, extra = {}) {
   const ref = doc(db, "users", user.uid);
   await setDoc(
@@ -93,7 +92,7 @@ async function createUserDoc(user, extra = {}) {
   );
 }
 
-// ─── GET USER PROFILE FROM FIRESTORE ─────────────────────────────────────────
+// ─── GET USER PROFILE ────────────────────────────────────────────────────────
 export async function getUserProfile(uid) {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
@@ -121,7 +120,6 @@ export function initLoginPage() {
     }
   });
 
-  // Toggle Password visibility
   if (togglePass && passInput) {
     togglePass.addEventListener("click", () => {
       passInput.type = passInput.type === "password" ? "text" : "password";
@@ -129,17 +127,14 @@ export function initLoginPage() {
     });
   }
 
-  // Email login
   if (form) {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = form.querySelector("button[type=submit]");
       const email = document.getElementById("email").value.trim();
       const password = passInput.value;
-
       btn.disabled = true;
       btn.textContent = "Signing in…";
-
       try {
         await loginWithEmail(email, password);
         showToast("Welcome back! 🎉");
@@ -151,7 +146,6 @@ export function initLoginPage() {
     });
   }
 
-  // Google login
   if (googleBtn) {
     googleBtn.addEventListener("click", async () => {
       try {
@@ -163,14 +157,10 @@ export function initLoginPage() {
     });
   }
 
-  // Forgot password
   if (forgotBtn) {
     forgotBtn.addEventListener("click", async () => {
       const email = document.getElementById("email")?.value.trim();
-      if (!email) {
-        showToast("Enter your email first", "error");
-        return;
-      }
+      if (!email) { showToast("Enter your email first", "error"); return; }
       try {
         await resetPassword(email);
         showToast("Password reset email sent! Check your inbox.");
@@ -199,18 +189,11 @@ export function initSignupPage() {
       const password = document.getElementById("password").value;
       const confirm = document.getElementById("confirm-password").value;
 
-      if (password !== confirm) {
-        showToast("Passwords do not match", "error");
-        return;
-      }
-      if (password.length < 6) {
-        showToast("Password must be at least 6 characters", "error");
-        return;
-      }
+      if (password !== confirm) { showToast("Passwords do not match", "error"); return; }
+      if (password.length < 6) { showToast("Password must be at least 6 characters", "error"); return; }
 
       btn.disabled = true;
       btn.textContent = "Creating Account…";
-
       try {
         await signupWithEmail(name, email, password);
         showToast("Account created! Welcome 🎉");
@@ -239,6 +222,7 @@ function friendlyError(code) {
   const msgs = {
     "auth/user-not-found": "No account found with this email.",
     "auth/wrong-password": "Incorrect password. Try again.",
+    "auth/invalid-credential": "Incorrect email or password.",
     "auth/email-already-in-use": "This email is already registered.",
     "auth/weak-password": "Password is too weak. Use 6+ characters.",
     "auth/invalid-email": "Invalid email address.",
@@ -249,42 +233,70 @@ function friendlyError(code) {
   return msgs[code] || "Something went wrong. Please try again.";
 }
 
-// ─── INIT NAV AUTH STATE ─────────────────────────────────────────────────────
-/**
- * Update navigation based on auth state (called on all pages)
- */
+// ─── INIT NAV AUTH ────────────────────────────────────────────────────────────
+// BUG FIX: logout listener was being added multiple times — now attached once outside onAuthChange
 export function initNavAuth() {
+  // Attach logout listener ONCE — not inside onAuthChange
+  const logoutBtn = document.getElementById("nav-logout");
+  if (logoutBtn && !logoutBtn.dataset.listenerAttached) {
+    logoutBtn.dataset.listenerAttached = "true";
+    logoutBtn.addEventListener("click", async () => {
+      try {
+        await logout();
+        window.location.href = "index.html";
+      } catch (err) {
+        showToast("Logout failed. Try again.", "error");
+      }
+    });
+  }
+
   onAuthChange(async (user) => {
-    const loginLink = document.getElementById("nav-login");
+    const loginLink  = document.getElementById("nav-login");
     const profileLink = document.getElementById("nav-profile");
-    const logoutBtn = document.getElementById("nav-logout");
-    const adminLink = document.getElementById("nav-admin");
+    const adminLink  = document.getElementById("nav-admin");
+    // mobile nav links
+    const mobileLoginLink   = document.getElementById("mobile-login-link");
+    const mobileProfileLink = document.getElementById("mobile-profile-link");
+    const mobileAdminLink   = document.getElementById("mobile-admin-link");
 
     if (user) {
-      if (loginLink) loginLink.style.display = "none";
+      // Show profile, hide login
+      if (loginLink)  loginLink.style.display  = "none";
+      if (logoutBtn)  logoutBtn.style.display   = "flex";
       if (profileLink) {
         profileLink.style.display = "flex";
-        profileLink.querySelector(".nav__username") &&
-          (profileLink.querySelector(".nav__username").textContent =
-            user.displayName?.split(" ")[0] || "Profile");
+        const nameEl = profileLink.querySelector(".nav__username");
+        if (nameEl) nameEl.textContent = user.displayName?.split(" ")[0] || "Profile";
       }
-      if (logoutBtn) {
-        logoutBtn.style.display = "flex";
-        logoutBtn.addEventListener("click", async () => {
-          await logout();
-          window.location.href = "index.html";
-        });
-      }
-      // Show admin link if admin
-      if (adminLink) {
+
+      // Mobile nav
+      if (mobileLoginLink)   mobileLoginLink.style.display   = "none";
+      if (mobileProfileLink) mobileProfileLink.style.display = "block";
+
+      // Check admin — fetch fresh from Firestore
+      try {
         const profile = await getUserProfile(user.uid);
-        if (profile?.isAdmin) adminLink.style.display = "flex";
+        if (profile?.isAdmin === true) {
+          if (adminLink)       adminLink.style.display       = "flex";
+          if (mobileAdminLink) mobileAdminLink.style.display = "block";
+        } else {
+          if (adminLink)       adminLink.style.display       = "none";
+          if (mobileAdminLink) mobileAdminLink.style.display = "none";
+        }
+      } catch (err) {
+        console.warn("Could not fetch profile for admin check:", err);
       }
+
     } else {
-      if (loginLink) loginLink.style.display = "flex";
-      if (profileLink) profileLink.style.display = "none";
-      if (logoutBtn) logoutBtn.style.display = "none";
-      if (adminLink) adminLink.style.display = "none";
+      // Logged out state
+      if (loginLink)   loginLink.style.display   = "flex";
+      if (logoutBtn)   logoutBtn.style.display    = "none";
+      if (profileLink) profileLink.style.display  = "none";
+      if (adminLink)   adminLink.style.display    = "none";
+
+      if (mobileLoginLink)   mobileLoginLink.style.display   = "block";
+      if (mobileProfileLink) mobileProfileLink.style.display = "none";
+      if (mobileAdminLink)   mobileAdminLink.style.display   = "none";
     }
   });
 }
