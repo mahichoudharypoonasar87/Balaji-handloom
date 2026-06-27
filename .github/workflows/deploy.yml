@@ -1,0 +1,74 @@
+# .github/workflows/deploy.yml
+# Balaji Handloom â€” Auto cache-bust on every push to main
+#
+# HOW IT WORKS:
+#   Every push to main branch:
+#   1. Appends ?v=<git-sha> to all JS/CSS src/href in HTML files
+#   2. Pushes the updated HTML files back to the repo
+#   This forces browsers to load the latest JS/CSS, bypassing cached versions.
+#
+# SETUP (one-time):
+#   - This workflow uses GITHUB_TOKEN which is automatically available.
+#   - No extra secrets needed for GitHub Pages deployments.
+#   - If using Vercel/Netlify, their CDN auto-purges on deploy â€” no extra step needed.
+
+name: Cache-Bust & Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # needed to push the cache-busted HTML back
+
+jobs:
+  cache-bust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get short commit SHA
+        id: sha
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Inject version into HTML files
+        run: |
+          SHA="${{ steps.sha.outputs.SHORT_SHA }}"
+          echo "Injecting version: $SHA"
+
+          # Loop over every .html file in root and subdirectories
+          find . -name "*.html" -not -path "./.git/*" | while read file; do
+            echo "Processing: $file"
+
+            # Remove old ?v=... params first (avoid stacking versions)
+            sed -i 's/?v=[a-f0-9]*"/"/' "$file"
+            sed -i "s/?v=[a-f0-9]*'/'/" "$file"
+
+            # Inject new version on all local JS src= and CSS href= attributes
+            # Matches: src="js/app.js" or href="css/style.css" (not http/https links)
+            sed -i "s|\(src=\"[^\"]*\.js\)\(\"[^>]*>\)|\1?v=${SHA}\2|g" "$file"
+            sed -i "s|\(href=\"[^\"]*\.css\)\(\"[^>]*>\)|\1?v=${SHA}\2|g" "$file"
+          done
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet && echo "CHANGED=false" >> $GITHUB_OUTPUT || echo "CHANGED=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push cache-busted HTML
+        if: steps.changes.outputs.CHANGED == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: cache-bust assets [v${{ steps.sha.outputs.SHORT_SHA }}] [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: No changes to commit
+        if: steps.changes.outputs.CHANGED == 'false'
+        run: echo "No HTML changes â€” skipping commit."
