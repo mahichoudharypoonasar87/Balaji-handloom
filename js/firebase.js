@@ -15,12 +15,12 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-
 // ─── YOUR FIREBASE CONFIG ────────────────────────────────────────────────────
 // Replace ALL values below with your own Firebase project config
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAM_SxBGcVqCKzOQdBG-YhoyekprKkvvd0",
+  authDomain: "balaji-handloom.firebaseapp.com",
+  projectId: "balaji-handloom",
+  storageBucket: "balaji-handloom.firebasestorage.app",
+  messagingSenderId: "316797473264",
+  appId: "1:316797473264:web:d62ac0ff83dcd17b900d35"
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
