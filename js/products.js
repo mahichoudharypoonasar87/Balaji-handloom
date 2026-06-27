@@ -152,12 +152,14 @@ export async function getFeaturedProducts(maxCount = 8) {
   const q = query(
     collection(db, "products"),
     where("featured", "==", true),
-    where("stock", ">", 0),
-    orderBy("stock"),
     limit(maxCount)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  // Client-side filter: stock > 0
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((p) => p.stock > 0)
+    .slice(0, maxCount);
 }
 
 // ─── FETCH LATEST PRODUCTS ───────────────────────────────────────────────────
@@ -237,7 +239,7 @@ export function initSearchBar() {
   // Pre-load products for search
   getAllProducts().then((p) => (allProducts = p));
 
-  const { debounce } = require("./utils.js");
+  const { debounce } = await import("./utils.js");
 
   input.addEventListener(
     "input",
