@@ -26,18 +26,23 @@ import {
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  // ── UI init runs FIRST and independently — not affected by Firebase/import errors ──
   initDarkMode();
-  initNavAuth();
   initStickyHeader();
-  initMobileNav();
+  initMobileNav();   // hamburger must work even if product fetch fails
   initBackToTop();
-  initSearchBar();
   initScrollReveal();
 
-  // Load product sections
-  loadFeatured();
-  loadLatest();
-  loadTrending();
+  // ── Auth & cart — safe, no heavy imports ──
+  initNavAuth();
+
+  // ── Search bar ──
+  try { initSearchBar(); } catch(e) { console.warn("Search init failed:", e); }
+
+  // ── Product sections — wrapped so a Firestore error doesn't kill the whole page ──
+  loadFeatured().catch(console.error);
+  loadLatest().catch(console.error);
+  loadTrending().catch(console.error);
 
   // Category filter
   initCategoryFilter();
