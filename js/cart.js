@@ -108,18 +108,29 @@ export async function clearCart() {
 }
 
 // ─── LISTEN CART (realtime) ───────────────────────────────────────────────────
-export function listenCart(callback) {
+export function listenCart(callback, onError) {
   if (unsubCart) unsubCart();
   onAuthStateChanged(auth, (user) => {
     if (!user) {
       callback([]);
       return;
     }
-    unsubCart = onSnapshot(cartRef(user.uid), (snap) => {
-      const items = snap.docs.map((d) => ({ key: d.id, ...d.data() }));
-      callback(items);
-      updateCartBadge(items.length);
-    });
+    unsubCart = onSnapshot(
+      cartRef(user.uid),
+      (snap) => {
+        const items = snap.docs.map((d) => ({ key: d.id, ...d.data() }));
+        callback(items);
+        updateCartBadge(items.length);
+      },
+      (err) => {
+        console.error("Cart listener error:", err);
+        if (onError) {
+          onError(err);
+        } else {
+          showToast("Could not load cart. Please refresh.", "error");
+        }
+      }
+    );
   });
 }
 
@@ -136,51 +147,57 @@ export function initCartPage() {
   const container = document.getElementById("cart-items");
   const emptyState = document.getElementById("cart-empty");
   const summaryEl = document.getElementById("cart-summary");
-  const checkoutBtn = document.getElementById("checkout-btn");
 
   if (!container) return;
 
-  listenCart((items) => {
-    if (items.length === 0) {
-      container.innerHTML = "";
-      if (emptyState) emptyState.style.display = "flex";
+  listenCart(
+    (items) => {
+      if (items.length === 0) {
+        container.innerHTML = "";
+        if (emptyState) emptyState.style.display = "flex";
+        if (summaryEl) summaryEl.style.display = "none";
+        return;
+      }
+
+      if (emptyState) emptyState.style.display = "none";
+      if (summaryEl) summaryEl.style.display = "block";
+
+      container.innerHTML = items.map((item) => renderCartItem(item)).join("");
+
+      // Bind events
+      container.querySelectorAll(".cart-item__dec").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          updateCartQty(btn.dataset.key, parseInt(btn.dataset.qty) - 1)
+        );
+      });
+      container.querySelectorAll(".cart-item__inc").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          updateCartQty(btn.dataset.key, parseInt(btn.dataset.qty) + 1)
+        );
+      });
+      container.querySelectorAll(".cart-item__remove").forEach((btn) => {
+        btn.addEventListener("click", () => removeFromCart(btn.dataset.key));
+      });
+
+      // Summary
+      const { subtotal, mrpTotal, saved } = calcCartTotal(items);
+      document.getElementById("cart-subtotal").textContent = formatPrice(subtotal);
+      document.getElementById("cart-mrp").textContent = formatPrice(mrpTotal);
+      document.getElementById("cart-saved").textContent = formatPrice(saved);
+      document.getElementById("cart-total").textContent = formatPrice(subtotal);
+    },
+    (err) => {
+      // Without this, a Firestore read error (e.g. permission denied) left
+      // the cart stuck on its loading spinner forever with no feedback.
+      container.innerHTML = `
+        <div class="error-state" style="text-align:center; padding:var(--space-12);">
+          <p>Could not load your cart. Please refresh the page.</p>
+        </div>
+      `;
+      if (emptyState) emptyState.style.display = "none";
       if (summaryEl) summaryEl.style.display = "none";
-      return;
     }
-
-    if (emptyState) emptyState.style.display = "none";
-    if (summaryEl) summaryEl.style.display = "block";
-
-    container.innerHTML = items.map((item) => renderCartItem(item)).join("");
-
-    // Bind events
-    container.querySelectorAll(".cart-item__dec").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        updateCartQty(btn.dataset.key, parseInt(btn.dataset.qty) - 1)
-      );
-    });
-    container.querySelectorAll(".cart-item__inc").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        updateCartQty(btn.dataset.key, parseInt(btn.dataset.qty) + 1)
-      );
-    });
-    container.querySelectorAll(".cart-item__remove").forEach((btn) => {
-      btn.addEventListener("click", () => removeFromCart(btn.dataset.key));
-    });
-
-    // Summary
-    const { subtotal, mrpTotal, saved } = calcCartTotal(items);
-    document.getElementById("cart-subtotal").textContent = formatPrice(subtotal);
-    document.getElementById("cart-mrp").textContent = formatPrice(mrpTotal);
-    document.getElementById("cart-saved").textContent = formatPrice(saved);
-    document.getElementById("cart-total").textContent = formatPrice(subtotal);
-
-    if (checkoutBtn) {
-      checkoutBtn.onclick = () => {
-        window.location.href = "cart.html#checkout";
-      };
-    }
-  });
+  );
 }
 
 // ─── RENDER SINGLE CART ITEM ─────────────────────────────────────────────────
