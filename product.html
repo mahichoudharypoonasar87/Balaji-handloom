@@ -147,7 +147,22 @@
 </head>
 <body>
 
-<!-- ─── HEADER (same as index.html) ──────────────────────────────────────── -->
+<!-- ─── MOBILE NAV ───────────────────────────────────────────────────────── -->
+<div class="mobile-nav__overlay" id="mobile-overlay" role="presentation"></div>
+<nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+  <button class="mobile-nav__close" id="mobile-close" aria-label="Close menu">✕</button>
+  <div class="mobile-nav__links">
+    <a href="index.html" class="mobile-nav__link">🏠 Home</a>
+    <a href="index.html#categories" class="mobile-nav__link">📦 Categories</a>
+    <a href="cart.html" class="mobile-nav__link">🛒 Cart</a>
+    <a href="profile.html" id="mobile-profile-link" class="mobile-nav__link" style="display:none">👤 Profile</a>
+    <a href="orders.html" class="mobile-nav__link">📋 Orders</a>
+    <a href="admin.html" id="mobile-admin-link" class="mobile-nav__link" style="display:none">⚙️ Admin</a>
+    <a href="login.html" id="mobile-login-link" class="mobile-nav__link">🔑 Login</a>
+  </div>
+</nav>
+
+<!-- ─── HEADER ───────────────────────────────────────────────────────────── -->
 <header class="header" role="banner">
   <div class="container">
     <nav class="nav" aria-label="Main navigation">
@@ -159,10 +174,26 @@
         <button class="nav__icon-btn theme-toggle" aria-label="Toggle dark mode">🌙</button>
         <a href="profile.html#wishlist" class="nav__icon-btn" aria-label="Wishlist">♡<span class="wishlist-badge"></span></a>
         <a href="cart.html" class="nav__icon-btn" aria-label="Cart">🛒<span class="cart-badge"></span></a>
-        <a href="profile.html" class="nav__icon-btn" id="nav-profile" style="display:none">👤</a>
-        <a href="login.html" class="nav__icon-btn" id="nav-login">🔑</a>
-        <button class="nav__icon-btn" id="nav-logout" style="display:none">🚪</button>
-        <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+
+        <!-- Login icon (shown when logged out) -->
+        <a href="login.html" class="nav__icon-btn" id="nav-login" aria-label="Login" title="Login">🔑</a>
+
+        <!-- Profile dropdown (shown when logged in) -->
+        <div class="nav-profile-wrap" id="nav-profile-wrap" style="display:none; position:relative;">
+          <button class="nav-profile-badge" id="nav-profile-btn" aria-label="My Account" title="My Account">
+            <span class="nav-profile-avatar" id="nav-profile-avatar">👤</span>
+            <span class="nav-profile-name" id="nav-profile-name"></span>
+            <span style="font-size:0.6rem; opacity:0.6;">▼</span>
+          </button>
+          <div class="nav-profile-dropdown" id="nav-profile-dropdown">
+            <a href="profile.html" class="nav-profile-dropdown__item">👤 My Profile</a>
+            <a href="orders.html" class="nav-profile-dropdown__item">📦 My Orders</a>
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:4px 0;">
+            <button class="nav-profile-dropdown__item nav-profile-dropdown__item--logout" id="nav-logout">🚪 Logout</button>
+          </div>
+        </div>
+
+        <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
           <span></span><span></span><span></span>
         </button>
       </div>
@@ -348,5 +379,50 @@
 </main>
 
 <script type="module" src="js/product.js"></script>
+
+<!-- Profile dropdown toggle -->
+<script>
+(function () {
+  document.addEventListener("click", function (e) {
+    var wrap = document.getElementById("nav-profile-wrap");
+    var btn  = document.getElementById("nav-profile-btn");
+    if (!wrap) return;
+    if (btn && btn.contains(e.target)) {
+      wrap.classList.toggle("open");
+    } else {
+      wrap.classList.remove("open");
+    }
+  });
+})();
+</script>
+
+<!-- Mobile nav -->
+<script>
+(function () {
+  var hamburger = document.getElementById("hamburger");
+  var mobileNav = document.getElementById("mobile-nav");
+  var overlay   = document.getElementById("mobile-overlay");
+  var closeBtn  = document.getElementById("mobile-close");
+
+  function openNav() {
+    mobileNav && mobileNav.classList.add("open");
+    overlay   && overlay.classList.add("show");
+    hamburger && hamburger.classList.add("open");
+    hamburger && hamburger.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+  function closeNav() {
+    mobileNav && mobileNav.classList.remove("open");
+    overlay   && overlay.classList.remove("show");
+    hamburger && hamburger.classList.remove("open");
+    hamburger && hamburger.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+
+  hamburger && hamburger.addEventListener("click", openNav);
+  closeBtn  && closeBtn.addEventListener("click", closeNav);
+  overlay   && overlay.addEventListener("click", closeNav);
+})();
+</script>
 </body>
 </html>
