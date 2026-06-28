@@ -16,7 +16,7 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { addToCart } from "./cart.js";
-import { addToWishlist, removeFromWishlist, isWishlisted } from "./profile.js";
+import { addToWishlist, removeFromWishlist, isWishlisted } from "./wishlist.js";
 import { renderProductCard, bindProductCardEvents } from "./products.js";
 import {
   calcDiscount,
@@ -186,7 +186,7 @@ function renderProduct(p) {
   }, { once: true });
 
   // Wishlist
-  initWishlist(p.id);
+  initWishlist(p.id).catch((err) => console.error("Wishlist init error:", err));
 
   // Share
   initShare(p);
