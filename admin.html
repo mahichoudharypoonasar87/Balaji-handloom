@@ -340,5 +340,20 @@
 </div>
 
 <script type="module" src="js/admin.js"></script>
+  <script>
+// Mobile menu toggle for admin panel
+(function() {
+  const toggle = document.getElementById('admin-mobile-toggle');
+  const sidebar = document.querySelector('.admin-sidebar');
+  
+  if (toggle && sidebar) {
+    toggle.addEventListener('click', function() {
+      sidebar.classList.toggle('mobile-open');
+      toggle.classList.toggle('active');
+    });
+  }
+})();
+  </script>
+  
 </body>
 </html>
