@@ -197,7 +197,7 @@
 <script type="module">
   import { initCartPage } from "./js/cart.js";
   import { initCheckout } from "./js/checkout.js";
-  import { initNavAuth, onAuthChange } from "./js/auth.js";
+  import { initNavAuth } from "./js/auth.js";
   import { initDarkMode, initStickyHeader } from "./js/utils.js";
 
   initDarkMode();
@@ -206,15 +206,27 @@
   initCartPage();
 
   // Show checkout section when "Proceed" is clicked
-  document.getElementById("checkout-btn")?.addEventListener("click", () => {
+  let checkoutInitialized = false;
+  document.getElementById("checkout-btn")?.addEventListener("click", async () => {
     const checkoutSection = document.getElementById("checkout-section");
     checkoutSection.style.display = "block";
     checkoutSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // Init checkout form with user data
-    onAuthChange((user) => {
-      if (user) initCheckout();
-    });
+    // Init checkout form with user data (only once, even if clicked again)
+    if (!checkoutInitialized) {
+      const { auth } = await import("./js/firebase.js");
+      await auth.authStateReady();
+      if (auth.currentUser) {
+        checkoutInitialized = true;
+        initCheckout();
+      } else {
+        const { showToast } = await import("./js/utils.js");
+        showToast("Please login to checkout", "error");
+        setTimeout(() => {
+          window.location.href = "login.html?redirect=cart.html";
+        }, 1200);
+      }
+    }
   });
 
   // Coupon button (UI only)
