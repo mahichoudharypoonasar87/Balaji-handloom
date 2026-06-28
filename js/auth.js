@@ -6,6 +6,7 @@
  * BUGS FIXED:
  * - logout listener was added multiple times on each auth state change
  * - initNavAuth now uses a single logout listener
+ * - LOGIN REDIRECT FIX: After successful login, redirect to the 'redirect' URL param
  */
 
 import { auth, db, googleProvider } from "./firebase.js";
@@ -84,9 +85,6 @@ async function createUserDoc(user, extra = {}) {
       state: "Rajasthan",
       pincode: "",
       photoURL: user.photoURL || "",
-      // NOTE: isAdmin is intentionally NOT set here. Firestore security
-      // rules block any client write that includes the isAdmin key —
-      // admin status can only be granted via the Firebase Console.
       createdAt: serverTimestamp(),
       ...extra,
     },
@@ -111,6 +109,22 @@ export async function isAdmin(uid) {
   return profile?.isAdmin === true;
 }
 
+// ─── HELPER: Get redirect URL from query params ────────────────────────────────
+function getRedirectUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("redirect");
+}
+
+// ─── HELPER: Handle post-login redirect ──────────────────────────────────────
+function handlePostLoginRedirect() {
+  const redirect = getRedirectUrl();
+  if (redirect) {
+    window.location.href = redirect;
+  } else {
+    window.location.href = "index.html";
+  }
+}
+
 // ─── INIT LOGIN PAGE ─────────────────────────────────────────────────────────
 export function initLoginPage() {
   const form = document.getElementById("login-form");
@@ -119,30 +133,21 @@ export function initLoginPage() {
   const togglePass = document.getElementById("toggle-password");
   const passInput = document.getElementById("password");
 
-  // Redirect if already logged in — BUT only if:
-  //   1. A "redirect" param exists in URL (user was sent here from cart/profile etc.)
-  //   2. OR sessionStorage does NOT have "user-logged-out" flag
-  //      (flag is set by logout button so we don't redirect a user who just logged out)
   auth.authStateReady().then(() => {
-    if (!auth.currentUser) return; // not logged in — show login page normally
-
+    if (!auth.currentUser) return;
     const params   = new URLSearchParams(window.location.search);
     const redirect = params.get("redirect");
     const justLoggedOut = sessionStorage.getItem("just-logged-out") === "1";
 
     if (justLoggedOut) {
-      // User explicitly logged out — clear flag and stay on login page
       sessionStorage.removeItem("just-logged-out");
       return;
     }
 
     if (redirect) {
-      // Sent here from cart/profile/checkout — redirect back after login check
       window.location.href = redirect;
       return;
     }
-
-    // User is logged in and directly navigated to login.html — send to home
     window.location.href = "index.html";
   });
 
@@ -164,6 +169,9 @@ export function initLoginPage() {
       try {
         await loginWithEmail(email, password);
         showToast("Welcome back! 🎉");
+        setTimeout(() => {
+          handlePostLoginRedirect();
+        }, 800);
       } catch (err) {
         showToast(friendlyError(err.code), "error");
         btn.disabled = false;
@@ -177,6 +185,9 @@ export function initLoginPage() {
       try {
         await loginWithGoogle();
         showToast("Logged in with Google! 🎉");
+        setTimeout(() => {
+          handlePostLoginRedirect();
+        }, 800);
       } catch (err) {
         showToast(friendlyError(err.code), "error");
       }
@@ -203,7 +214,10 @@ export function initSignupPage() {
   const googleBtn = document.getElementById("google-signup-btn");
 
   onAuthChange((user) => {
-    if (user) window.location.href = "index.html";
+    if (user) {
+      const redirect = getRedirectUrl();
+      window.location.href = redirect || "index.html";
+    }
   });
 
   if (form) {
@@ -223,6 +237,9 @@ export function initSignupPage() {
       try {
         await signupWithEmail(name, email, password);
         showToast("Account created! Welcome 🎉");
+        setTimeout(() => {
+          handlePostLoginRedirect();
+        }, 800);
       } catch (err) {
         showToast(friendlyError(err.code), "error");
         btn.disabled = false;
@@ -236,6 +253,9 @@ export function initSignupPage() {
       try {
         await loginWithGoogle();
         showToast("Account created with Google! 🎉");
+        setTimeout(() => {
+          handlePostLoginRedirect();
+        }, 800);
       } catch (err) {
         showToast(friendlyError(err.code), "error");
       }
@@ -260,15 +280,12 @@ function friendlyError(code) {
 }
 
 // ─── INIT NAV AUTH ────────────────────────────────────────────────────────────
-// BUG FIX: logout listener was being added multiple times — now attached once outside onAuthChange
 export function initNavAuth() {
-  // Attach logout listener ONCE — not inside onAuthChange
   const logoutBtn = document.getElementById("nav-logout");
   if (logoutBtn && !logoutBtn.dataset.listenerAttached) {
     logoutBtn.dataset.listenerAttached = "true";
     logoutBtn.addEventListener("click", async () => {
       try {
-        // Set flag so login.html knows user just logged out — prevents auto-redirect
         sessionStorage.setItem("just-logged-out", "1");
         await logout();
         window.location.href = "index.html";
@@ -290,11 +307,9 @@ export function initNavAuth() {
     const mobileAdminLink   = document.getElementById("mobile-admin-link");
 
     if (user) {
-      // ── Show profile badge, hide login ──
       if (loginLink)   loginLink.style.display   = "none";
       if (profileWrap) profileWrap.style.display = "flex";
 
-      // Set name (first word only) and avatar initial
       const firstName = user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "User";
       if (profileName)   profileName.textContent = firstName;
       if (profileAvatar) {
@@ -305,11 +320,9 @@ export function initNavAuth() {
         }
       }
 
-      // Mobile nav
       if (mobileLoginLink)   mobileLoginLink.style.display   = "none";
       if (mobileProfileLink) mobileProfileLink.style.display = "block";
 
-      // Check admin
       try {
         const profile = await getUserProfile(user.uid);
         if (profile?.isAdmin === true) {
@@ -324,7 +337,6 @@ export function initNavAuth() {
       }
 
     } else {
-      // ── Logged out ──
       if (loginLink)   loginLink.style.display   = "flex";
       if (profileWrap) profileWrap.style.display = "none";
       if (adminLink)   adminLink.style.display   = "none";
