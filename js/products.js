@@ -24,6 +24,8 @@ import {
   createSkeleton,
   showToast,
   productImageHtml,
+  debounce,
+  initScrollReveal,
 } from "./utils.js";
 
 // ─── PRODUCT CARD HTML ───────────────────────────────────────────────────────
@@ -192,8 +194,8 @@ export async function getAllProducts() {
 }
 
 // ─── SEARCH PRODUCTS (client-side) ───────────────────────────────────────────
-export function searchProducts(products, query) {
-  const q = query.toLowerCase();
+export function searchProducts(products, searchQuery) {
+  const q = searchQuery.toLowerCase();
   return products.filter(
     (p) =>
       p.name?.toLowerCase().includes(q) ||
@@ -218,9 +220,6 @@ export async function renderProductGrid(containerId, fetchFn, emptyMsg = "No pro
     }
     container.innerHTML = products.map(renderProductCard).join("");
     bindProductCardEvents(container);
-
-    // Scroll reveal
-    const { initScrollReveal } = await import("./utils.js");
     initScrollReveal();
   } catch (err) {
     console.error("Product fetch error:", err);
@@ -238,8 +237,6 @@ export function initSearchBar() {
 
   // Pre-load products for search
   getAllProducts().then((p) => (allProducts = p));
-
-  const { debounce } = await import("./utils.js");
 
   input.addEventListener(
     "input",
