@@ -128,12 +128,14 @@ document.addEventListener("DOMContentLoaded", () => {
     initNav();
     initProductForm();
     initProductSearch();
+    switchSection("dashboard");  // activate dashboard section so it's not blank
     loadDashboard();
 
     const logoutBtn = document.getElementById("admin-logout-btn");
     if (logoutBtn && !logoutBtn.dataset.attached) {
       logoutBtn.dataset.attached = "true";
       logoutBtn.addEventListener("click", async () => {
+        sessionStorage.setItem("just-logged-out", "1");
         await logout();
         window.location.href = "login.html";
       });
