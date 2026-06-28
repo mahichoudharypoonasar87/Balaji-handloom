@@ -2,6 +2,11 @@
  * order.js
  * Order Tracking — Realtime from Firestore
  * Shree Panchmukhi Balaji Handloom
+ * 
+ * FIXES:
+ * - Added proper error handling for Firestore composite index issues
+ * - Added fallback to simple query without orderBy if index missing
+ * - Better error messages for users
  */
 
 import { db } from "./firebase.js";
@@ -12,6 +17,7 @@ import {
   query,
   where,
   orderBy,
+  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthChange } from "./auth.js";
 import {
@@ -24,10 +30,8 @@ import {
   productImageHtml,
 } from "./utils.js";
 
-// ─── ORDER STATUS STEPS ───────────────────────────────────────────────────────
 const STATUS_STEPS = ["Pending", "Confirmed", "Packed", "Shipped", "Delivered"];
 
-// ─── INIT ORDERS PAGE ────────────────────────────────────────────────────────
 export function initOrdersPage() {
   initDarkMode();
   initStickyHeader();
@@ -37,21 +41,18 @@ export function initOrdersPage() {
 
   onAuthChange((user) => {
     if (!user) {
-      window.location.href = "login.html?redirect=orders.html";
+      window.location.href = "login.html?redirect=" + encodeURIComponent(window.location.href);
       return;
     }
 
     if (orderId) {
-      // Show specific order
       loadSingleOrder(orderId, user.uid);
     } else {
-      // Show all orders
       loadAllOrders(user.uid);
     }
   });
 }
 
-// ─── LOAD SINGLE ORDER (realtime) ────────────────────────────────────────────
 function loadSingleOrder(orderId, uid) {
   const container = document.getElementById("order-detail");
   const listView = document.getElementById("orders-list-view");
@@ -75,18 +76,26 @@ function loadSingleOrder(orderId, uid) {
 
     const order = { id: snap.id, ...snap.data() };
 
-    // Verify this order belongs to the user
     if (order.userId !== uid) {
       container.innerHTML = `<p style="text-align:center; padding:var(--space-8); color:var(--clr-error);">Access denied.</p>`;
       return;
     }
 
     container.innerHTML = renderOrderDetail(order);
+  }, (err) => {
+    console.error("Order detail error:", err);
+    container.innerHTML = `
+      <div style="text-align:center; padding:var(--space-12);">
+        <p style="font-size:3rem; margin-bottom:var(--space-4);">⚠️</p>
+        <h2 style="font-family:var(--font-display); font-size:var(--text-2xl); margin-bottom:var(--space-4);">Error Loading Order</h2>
+        <p style="color:var(--clr-text-muted); margin-bottom:var(--space-4);">${err.message || "Something went wrong"}</p>
+        <a href="orders.html" class="btn btn--primary btn--md">View All Orders</a>
+      </div>
+    `;
   });
 }
 
-// ─── LOAD ALL ORDERS (realtime) ───────────────────────────────────────────────
-function loadAllOrders(uid) {
+async function loadAllOrders(uid) {
   const container = document.getElementById("orders-list");
   const searchInput = document.getElementById("order-search");
   if (!container) return;
@@ -94,19 +103,51 @@ function loadAllOrders(uid) {
   container.innerHTML = `<div style="display:flex;justify-content:center;padding:var(--space-12);"><div class="spinner spinner--lg"></div></div>`;
 
   let allOrders = [];
-
-  const q = query(
-    collection(db, "orders"),
-    where("userId", "==", uid),
-    orderBy("createdAt", "desc")
-  );
+  let q;
+  let useClientSort = false;
+  
+  try {
+    q = query(
+      collection(db, "orders"),
+      where("userId", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+    const testSnap = await getDocs(q);
+    console.log("Composite index query works!");
+  } catch (err) {
+    console.warn("Composite index missing, falling back to simple query:", err.message);
+    q = query(
+      collection(db, "orders"),
+      where("userId", "==", uid)
+    );
+    useClientSort = true;
+    showToast("Creating search index... Please refresh in a moment.", "info");
+  }
 
   onSnapshot(q, (snap) => {
     allOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    
+    if (useClientSort) {
+      allOrders.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+    }
+    
     renderOrderList(container, allOrders);
+  }, (err) => {
+    console.error("Orders listener error:", err);
+    container.innerHTML = `
+      <div style="text-align:center; padding:var(--space-12); color:var(--clr-error);">
+        <p style="font-size:3rem; margin-bottom:var(--space-4);">⚠️</p>
+        <p style="font-size:var(--text-lg); font-weight:600; margin-bottom:var(--space-2);">Could not load orders</p>
+        <p style="color:var(--clr-text-muted);">${err.message || "Please try again later"}</p>
+        <button onclick="window.location.reload()" class="btn btn--primary btn--md" style="margin-top:var(--space-6);">Retry</button>
+      </div>
+    `;
   });
 
-  // Search
   searchInput?.addEventListener("input", () => {
     const q = searchInput.value.toLowerCase();
     const filtered = allOrders.filter(
@@ -119,7 +160,6 @@ function loadAllOrders(uid) {
   });
 }
 
-// ─── RENDER ORDER LIST ────────────────────────────────────────────────────────
 function renderOrderList(container, orders) {
   if (!orders.length) {
     container.innerHTML = `
@@ -135,7 +175,6 @@ function renderOrderList(container, orders) {
   container.innerHTML = orders.map((order) => renderOrderCard(order)).join("");
 }
 
-// ─── RENDER ORDER CARD ────────────────────────────────────────────────────────
 function renderOrderCard(order) {
   const color = statusColor(order.status);
   const itemsPreview = (order.items || [])
@@ -185,7 +224,6 @@ function renderOrderCard(order) {
   `;
 }
 
-// ─── MINI STATUS TRACKER ──────────────────────────────────────────────────────
 function renderMiniTracker(status) {
   const currentIdx = STATUS_STEPS.indexOf(status);
   return `
@@ -213,7 +251,6 @@ function renderMiniTracker(status) {
   `;
 }
 
-// ─── RENDER FULL ORDER DETAIL ─────────────────────────────────────────────────
 function renderOrderDetail(order) {
   const isCancelled = order.status === "Cancelled";
   const currentIdx = STATUS_STEPS.indexOf(order.status);
@@ -223,7 +260,6 @@ function renderOrderDetail(order) {
       <a href="orders.html" style="font-size:var(--text-sm); color:var(--clr-text-muted);">← All Orders</a>
     </div>
 
-    <!-- Order Header -->
     <div class="glass-card" style="padding:var(--space-6); margin-bottom:var(--space-6);">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:var(--space-4);">
         <div>
@@ -243,7 +279,6 @@ function renderOrderDetail(order) {
       </div>
     </div>
 
-    <!-- Status Tracker -->
     ${!isCancelled ? `
     <div class="glass-card" style="padding:var(--space-8); margin-bottom:var(--space-6);">
       <h2 style="font-family:var(--font-display); font-size:var(--text-xl); font-weight:700; margin-bottom:var(--space-8);">Order Progress</h2>
@@ -270,7 +305,6 @@ function renderOrderDetail(order) {
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6);">
 
-      <!-- Order Items -->
       <div class="glass-card" style="padding:var(--space-6);">
         <h2 style="font-family:var(--font-display); font-size:var(--text-xl); font-weight:700; margin-bottom:var(--space-5);">Items Ordered</h2>
         ${(order.items || []).map((item) => `
@@ -291,7 +325,6 @@ function renderOrderDetail(order) {
         </div>
       </div>
 
-      <!-- Delivery Details -->
       <div>
         <div class="glass-card" style="padding:var(--space-6); margin-bottom:var(--space-4);">
           <h2 style="font-family:var(--font-display); font-size:var(--text-xl); font-weight:700; margin-bottom:var(--space-4);">Delivery Address</h2>
