@@ -1,288 +1,337 @@
 /**
- * products.js
- * Product Listing, Filtering, Search
- * Shree Panchmukhi Balaji Handloom
+ * auth.js
+ * Firebase Authentication Logic
+ * Login / Signup / Google / Logout / Password Reset
+ *
+ * BUGS FIXED:
+ * - logout listener was added multiple times on each auth state change
+ * - initNavAuth now uses a single logout listener
  */
 
-import { db } from "./firebase.js";
+import { auth, db, googleProvider } from "./firebase.js";
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  onSnapshot,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  sendPasswordResetEmail,
+  updateProfile,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { addToCart } from "./cart.js";
-import { addToWishlist, isWishlisted } from "./wishlist.js";
-import {
-  calcDiscount,
-  formatPrice,
-  renderStars,
-  truncate,
-  createSkeleton,
-  showToast,
-  productImageHtml,
-} from "./utils.js";
+import { showToast } from "./utils.js";
 
-// ─── PRODUCT CARD HTML ───────────────────────────────────────────────────────
-export function renderProductCard(product) {
-  const discount = calcDiscount(product.mrp, product.price);
-  const mainImage = product.images?.[0] || "";
-  const hoverImage = product.images?.[1] || mainImage;
-
-  return `
-    <article class="product-card glass-card reveal" data-id="${product.id}" aria-label="${product.name}">
-      <a href="product.html?id=${product.id}" class="product-card__img-link" tabindex="-1" aria-hidden="true">
-        <div class="product-card__img-wrap">
-          ${productImageHtml(mainImage, product.name, "product-card__img", `data-hover="${hoverImage}" width="400" height="500"`)}
-          ${discount > 0 ? `<span class="discount-badge" aria-label="${discount}% off">${discount}% OFF</span>` : ""}
-          ${product.stock === 0 ? `<span class="out-of-stock-badge">Out of Stock</span>` : ""}
-          <button
-            class="wishlist-btn"
-            data-id="${product.id}"
-            aria-label="Add to wishlist"
-            title="Add to Wishlist"
-          >♡</button>
-        </div>
-      </a>
-      <div class="product-card__body">
-        <p class="product-card__category">${product.category || "Handloom"}</p>
-        <h3 class="product-card__name">
-          <a href="product.html?id=${product.id}">${truncate(product.name, 50)}</a>
-        </h3>
-        <p class="product-card__desc">${truncate(product.description, 70)}</p>
-        <div class="product-card__rating" aria-label="Rating: ${product.rating} out of 5">
-          <span class="stars">${renderStars(product.rating || 4)}</span>
-          <span class="rating-count">(${product.reviews || 0})</span>
-        </div>
-        <div class="product-card__pricing">
-          <span class="price">${formatPrice(product.price)}</span>
-          ${product.mrp > product.price ? `<span class="mrp">${formatPrice(product.mrp)}</span>` : ""}
-        </div>
-        <p class="product-card__stock ${product.stock < 10 ? "stock--low" : ""}">
-          ${product.stock === 0 ? "Out of Stock" : product.stock < 10 ? `Only ${product.stock} left!` : "In Stock"}
-        </p>
-        <div class="product-card__actions">
-          <a href="product.html?id=${product.id}" class="btn btn--outline btn--sm">
-            View Details
-          </a>
-          <button
-            class="btn btn--primary btn--sm add-to-cart-btn"
-            data-id="${product.id}"
-            ${product.stock === 0 ? "disabled" : ""}
-            aria-label="Add ${product.name} to cart"
-          >
-            Add to Cart
-          </button>
-        </div>
-      </div>
-    </article>
-  `;
+// ─── AUTH STATE LISTENER ─────────────────────────────────────────────────────
+export function onAuthChange(callback) {
+  return onAuthStateChanged(auth, callback);
 }
 
-// ─── BIND PRODUCT CARD EVENTS ────────────────────────────────────────────────
-export function bindProductCardEvents(container) {
-  // Image hover effect
-  container.querySelectorAll(".product-card__img").forEach((img) => {
-    const hover = img.dataset.hover;
-    if (hover && hover !== img.src) {
-      img.addEventListener("mouseenter", () => (img.src = hover));
-      img.addEventListener("mouseleave", () => (img.src = img.getAttribute("src")));
-    }
-  });
-
-  // Add to Cart
-  container.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const card = btn.closest(".product-card");
-      const id = btn.dataset.id;
-      btn.disabled = true;
-      btn.textContent = "Adding…";
-      try {
-        const product = await getProductById(id);
-        if (product) {
-          // Check if product has sizes
-          if (product.sizes?.length > 0) {
-            window.location.href = `product.html?id=${id}`;
-            return;
-          }
-          await addToCart(product);
-        }
-      } catch (err) {
-        showToast("Failed to add to cart", "error");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Add to Cart";
-      }
-    });
-  });
-
-  // Wishlist
-  container.querySelectorAll(".wishlist-btn").forEach(async (btn) => {
-    const id = btn.dataset.id;
-    // Check if already wishlisted
-    const wishlisted = await isWishlisted(id);
-    if (wishlisted) {
-      btn.textContent = "♥";
-      btn.classList.add("wishlist-btn--active");
-    }
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      await addToWishlist(id);
-      btn.textContent = btn.textContent === "♡" ? "♥" : "♡";
-      btn.classList.toggle("wishlist-btn--active");
-    });
-  });
+// ─── GET CURRENT USER ────────────────────────────────────────────────────────
+export function currentUser() {
+  return auth.currentUser;
 }
 
-// ─── GET SINGLE PRODUCT ──────────────────────────────────────────────────────
-export async function getProductById(id) {
-  const { doc, getDoc } = await import(
-    "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
-  );
-  const snap = await getDoc(doc(db, "products", id));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+// ─── SIGNUP WITH EMAIL ───────────────────────────────────────────────────────
+export async function signupWithEmail(name, email, password) {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(cred.user, { displayName: name });
+  await createUserDoc(cred.user, { name });
+  return cred.user;
 }
 
-// ─── FETCH FEATURED PRODUCTS ─────────────────────────────────────────────────
-export async function getFeaturedProducts(maxCount = 8) {
-  const q = query(
-    collection(db, "products"),
-    where("featured", "==", true),
-    limit(maxCount)
-  );
-  const snap = await getDocs(q);
-  // Client-side filter: stock > 0
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((p) => p.stock > 0)
-    .slice(0, maxCount);
+// ─── LOGIN WITH EMAIL ────────────────────────────────────────────────────────
+export async function loginWithEmail(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
 }
 
-// ─── FETCH LATEST PRODUCTS ───────────────────────────────────────────────────
-export async function getLatestProducts(maxCount = 8) {
-  const q = query(
-    collection(db, "products"),
-    orderBy("createdAt", "desc"),
-    limit(maxCount)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+// ─── GOOGLE LOGIN ────────────────────────────────────────────────────────────
+export async function loginWithGoogle() {
+  const cred = await signInWithPopup(auth, googleProvider);
+  const snap = await getDoc(doc(db, "users", cred.user.uid));
+  if (!snap.exists()) {
+    await createUserDoc(cred.user, {});
+  }
+  return cred.user;
 }
 
-// ─── FETCH PRODUCTS BY CATEGORY ──────────────────────────────────────────────
-export async function getProductsByCategory(category, maxCount = 12) {
-  const q = query(
-    collection(db, "products"),
-    where("category", "==", category),
-    orderBy("createdAt", "desc"),
-    limit(maxCount)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+// ─── LOGOUT ──────────────────────────────────────────────────────────────────
+export async function logout() {
+  await signOut(auth);
 }
 
-// ─── FETCH ALL PRODUCTS (for search) ─────────────────────────────────────────
-export async function getAllProducts() {
-  const snap = await getDocs(collection(db, "products"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+// ─── PASSWORD RESET ──────────────────────────────────────────────────────────
+export async function resetPassword(email) {
+  await sendPasswordResetEmail(auth, email);
 }
 
-// ─── SEARCH PRODUCTS (client-side) ───────────────────────────────────────────
-export function searchProducts(products, query) {
-  const q = query.toLowerCase();
-  return products.filter(
-    (p) =>
-      p.name?.toLowerCase().includes(q) ||
-      p.description?.toLowerCase().includes(q) ||
-      p.category?.toLowerCase().includes(q)
+// ─── CREATE USER DOCUMENT ────────────────────────────────────────────────────
+async function createUserDoc(user, extra = {}) {
+  const ref = doc(db, "users", user.uid);
+  await setDoc(
+    ref,
+    {
+      name: extra.name || user.displayName || "",
+      email: user.email,
+      phone: "",
+      address: "",
+      city: "",
+      state: "Rajasthan",
+      pincode: "",
+      photoURL: user.photoURL || "",
+      // NOTE: isAdmin is intentionally NOT set here. Firestore security
+      // rules block any client write that includes the isAdmin key —
+      // admin status can only be granted via the Firebase Console.
+      createdAt: serverTimestamp(),
+      ...extra,
+    },
+    { merge: true }
   );
 }
 
-// ─── RENDER PRODUCT GRID ─────────────────────────────────────────────────────
-export async function renderProductGrid(containerId, fetchFn, emptyMsg = "No products found") {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  // Show skeleton
-  container.innerHTML = createSkeleton(4);
-
+// ─── GET USER PROFILE ────────────────────────────────────────────────────────
+export async function getUserProfile(uid) {
   try {
-    const products = await fetchFn();
-    if (products.length === 0) {
-      container.innerHTML = `<p class="empty-state">${emptyMsg}</p>`;
-      return;
-    }
-    container.innerHTML = products.map(renderProductCard).join("");
-    bindProductCardEvents(container);
-
-    // Scroll reveal
-    const { initScrollReveal } = await import("./utils.js");
-    initScrollReveal();
+    const snap = await getDoc(doc(db, "users", uid));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
   } catch (err) {
-    console.error("Product fetch error:", err);
-    container.innerHTML = `<p class="error-state">Failed to load products. Please refresh.</p>`;
+    console.error("getUserProfile error:", err);
+    return null;
   }
 }
 
-// ─── INIT SEARCH BAR ─────────────────────────────────────────────────────────
-export function initSearchBar() {
-  const input = document.getElementById("search-input");
-  const dropdown = document.getElementById("search-dropdown");
-  if (!input || !dropdown) return;
+// ─── CHECK IF ADMIN ──────────────────────────────────────────────────────────
+export async function isAdmin(uid) {
+  const profile = await getUserProfile(uid);
+  return profile?.isAdmin === true;
+}
 
-  let allProducts = [];
+// ─── INIT LOGIN PAGE ─────────────────────────────────────────────────────────
+export function initLoginPage() {
+  const form = document.getElementById("login-form");
+  const googleBtn = document.getElementById("google-login-btn");
+  const forgotBtn = document.getElementById("forgot-btn");
+  const togglePass = document.getElementById("toggle-password");
+  const passInput = document.getElementById("password");
 
-  // Pre-load products for search
-  getAllProducts().then((p) => (allProducts = p));
+  // Redirect if already logged in — BUT only if:
+  //   1. A "redirect" param exists in URL (user was sent here from cart/profile etc.)
+  //   2. OR sessionStorage does NOT have "user-logged-out" flag
+  //      (flag is set by logout button so we don't redirect a user who just logged out)
+  auth.authStateReady().then(() => {
+    if (!auth.currentUser) return; // not logged in — show login page normally
 
-  const { debounce } = await import("./utils.js");
+    const params   = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+    const justLoggedOut = sessionStorage.getItem("just-logged-out") === "1";
 
-  input.addEventListener(
-    "input",
-    debounce(async () => {
-      const q = input.value.trim();
-      if (q.length < 2) {
-        dropdown.innerHTML = "";
-        dropdown.style.display = "none";
-        return;
-      }
-      const results = searchProducts(allProducts, q).slice(0, 6);
-      if (results.length === 0) {
-        dropdown.innerHTML = `<p class="search-no-results">No products found for "${q}"</p>`;
-      } else {
-        dropdown.innerHTML = results
-          .map(
-            (p) => `
-          <a href="product.html?id=${p.id}" class="search-result-item">
-            ${productImageHtml(p.images?.[0] || "", p.name, "search-result-img")}
-            <div class="search-result-info">
-              <span class="search-result-name">${p.name}</span>
-              <span class="search-result-price">${formatPrice(p.price)}</span>
-            </div>
-          </a>
-        `
-          )
-          .join("");
-      }
-      dropdown.style.display = "block";
-    }, 300)
-  );
-
-  // Close on outside click
-  document.addEventListener("click", (e) => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.style.display = "none";
+    if (justLoggedOut) {
+      // User explicitly logged out — clear flag and stay on login page
+      sessionStorage.removeItem("just-logged-out");
+      return;
     }
+
+    if (redirect) {
+      // Sent here from cart/profile/checkout — redirect back after login check
+      window.location.href = redirect;
+      return;
+    }
+
+    // User is logged in and directly navigated to login.html — send to home
+    window.location.href = "index.html";
   });
 
-  // Submit search form
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      dropdown.style.display = "none";
+  if (togglePass && passInput) {
+    togglePass.addEventListener("click", () => {
+      passInput.type = passInput.type === "password" ? "text" : "password";
+      togglePass.textContent = passInput.type === "password" ? "👁" : "🙈";
+    });
+  }
+
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector("button[type=submit]");
+      const email = document.getElementById("email").value.trim();
+      const password = passInput.value;
+      btn.disabled = true;
+      btn.textContent = "Signing in…";
+      try {
+        await loginWithEmail(email, password);
+        showToast("Welcome back! 🎉");
+      } catch (err) {
+        showToast(friendlyError(err.code), "error");
+        btn.disabled = false;
+        btn.textContent = "Login";
+      }
+    });
+  }
+
+  if (googleBtn) {
+    googleBtn.addEventListener("click", async () => {
+      try {
+        await loginWithGoogle();
+        showToast("Logged in with Google! 🎉");
+      } catch (err) {
+        showToast(friendlyError(err.code), "error");
+      }
+    });
+  }
+
+  if (forgotBtn) {
+    forgotBtn.addEventListener("click", async () => {
+      const email = document.getElementById("email")?.value.trim();
+      if (!email) { showToast("Enter your email first", "error"); return; }
+      try {
+        await resetPassword(email);
+        showToast("Password reset email sent! Check your inbox.");
+      } catch (err) {
+        showToast(friendlyError(err.code), "error");
+      }
+    });
+  }
+}
+
+// ─── INIT SIGNUP PAGE ────────────────────────────────────────────────────────
+export function initSignupPage() {
+  const form = document.getElementById("signup-form");
+  const googleBtn = document.getElementById("google-signup-btn");
+
+  onAuthChange((user) => {
+    if (user) window.location.href = "index.html";
+  });
+
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector("button[type=submit]");
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const confirm = document.getElementById("confirm-password").value;
+
+      if (password !== confirm) { showToast("Passwords do not match", "error"); return; }
+      if (password.length < 6) { showToast("Password must be at least 6 characters", "error"); return; }
+
+      btn.disabled = true;
+      btn.textContent = "Creating Account…";
+      try {
+        await signupWithEmail(name, email, password);
+        showToast("Account created! Welcome 🎉");
+      } catch (err) {
+        showToast(friendlyError(err.code), "error");
+        btn.disabled = false;
+        btn.textContent = "Create Account";
+      }
+    });
+  }
+
+  if (googleBtn) {
+    googleBtn.addEventListener("click", async () => {
+      try {
+        await loginWithGoogle();
+        showToast("Account created with Google! 🎉");
+      } catch (err) {
+        showToast(friendlyError(err.code), "error");
+      }
+    });
+  }
+}
+
+// ─── FRIENDLY ERROR MESSAGES ─────────────────────────────────────────────────
+function friendlyError(code) {
+  const msgs = {
+    "auth/user-not-found": "No account found with this email.",
+    "auth/wrong-password": "Incorrect password. Try again.",
+    "auth/invalid-credential": "Incorrect email or password.",
+    "auth/email-already-in-use": "This email is already registered.",
+    "auth/weak-password": "Password is too weak. Use 6+ characters.",
+    "auth/invalid-email": "Invalid email address.",
+    "auth/popup-closed-by-user": "Google sign-in was cancelled.",
+    "auth/network-request-failed": "Network error. Check your connection.",
+    "auth/too-many-requests": "Too many attempts. Please try again later.",
+  };
+  return msgs[code] || "Something went wrong. Please try again.";
+}
+
+// ─── INIT NAV AUTH ────────────────────────────────────────────────────────────
+// BUG FIX: logout listener was being added multiple times — now attached once outside onAuthChange
+export function initNavAuth() {
+  // Attach logout listener ONCE — not inside onAuthChange
+  const logoutBtn = document.getElementById("nav-logout");
+  if (logoutBtn && !logoutBtn.dataset.listenerAttached) {
+    logoutBtn.dataset.listenerAttached = "true";
+    logoutBtn.addEventListener("click", async () => {
+      try {
+        // Set flag so login.html knows user just logged out — prevents auto-redirect
+        sessionStorage.setItem("just-logged-out", "1");
+        await logout();
+        window.location.href = "index.html";
+      } catch (err) {
+        sessionStorage.removeItem("just-logged-out");
+        showToast("Logout failed. Try again.", "error");
+      }
+    });
+  }
+
+  onAuthChange(async (user) => {
+    const loginLink      = document.getElementById("nav-login");
+    const profileWrap    = document.getElementById("nav-profile-wrap");
+    const profileName    = document.getElementById("nav-profile-name");
+    const profileAvatar  = document.getElementById("nav-profile-avatar");
+    const adminLink      = document.getElementById("nav-admin");
+    const mobileLoginLink   = document.getElementById("mobile-login-link");
+    const mobileProfileLink = document.getElementById("mobile-profile-link");
+    const mobileAdminLink   = document.getElementById("mobile-admin-link");
+
+    if (user) {
+      // ── Show profile badge, hide login ──
+      if (loginLink)   loginLink.style.display   = "none";
+      if (profileWrap) profileWrap.style.display = "flex";
+
+      // Set name (first word only) and avatar initial
+      const firstName = user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "User";
+      if (profileName)   profileName.textContent = firstName;
+      if (profileAvatar) {
+        if (user.photoURL) {
+          profileAvatar.innerHTML = `<img src="${user.photoURL}" alt="${firstName}">`;
+        } else {
+          profileAvatar.textContent = firstName.charAt(0).toUpperCase();
+        }
+      }
+
+      // Mobile nav
+      if (mobileLoginLink)   mobileLoginLink.style.display   = "none";
+      if (mobileProfileLink) mobileProfileLink.style.display = "block";
+
+      // Check admin
+      try {
+        const profile = await getUserProfile(user.uid);
+        if (profile?.isAdmin === true) {
+          if (adminLink)       adminLink.style.display       = "flex";
+          if (mobileAdminLink) mobileAdminLink.style.display = "block";
+        } else {
+          if (adminLink)       adminLink.style.display       = "none";
+          if (mobileAdminLink) mobileAdminLink.style.display = "none";
+        }
+      } catch (err) {
+        console.warn("Could not fetch profile for admin check:", err);
+      }
+
+    } else {
+      // ── Logged out ──
+      if (loginLink)   loginLink.style.display   = "flex";
+      if (profileWrap) profileWrap.style.display = "none";
+      if (adminLink)   adminLink.style.display   = "none";
+
+      if (mobileLoginLink)   mobileLoginLink.style.display   = "block";
+      if (mobileProfileLink) mobileProfileLink.style.display = "none";
+      if (mobileAdminLink)   mobileAdminLink.style.display   = "none";
     }
   });
 }

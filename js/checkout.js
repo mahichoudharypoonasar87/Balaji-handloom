@@ -1,229 +1,166 @@
 /**
- * app.js
- * Home Page Logic
+ * checkout.js
+ * WhatsApp Order + Firestore Order Saving
  * Shree Panchmukhi Balaji Handloom
  */
 
-import { initNavAuth } from "./auth.js";
-import { listenCart } from "./cart.js";
+import { auth, db } from "./firebase.js";
 import {
-  renderProductGrid,
-  getFeaturedProducts,
-  getLatestProducts,
-  getAllProducts,
-  getProductsByCategory,
-  renderProductCard,
-  bindProductCardEvents,
-  initSearchBar,
-} from "./products.js";
-import {
-  initDarkMode,
-  initScrollReveal,
-  initStickyHeader,
-  showToast,
-  createSkeleton,
-} from "./utils.js";
+  doc,
+  setDoc,
+  serverTimestamp,
+  collection,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getCartItems, clearCart, calcCartTotal } from "./cart.js";
+import { getUserProfile } from "./auth.js";
+import { showToast, generateOrderId, formatPrice } from "./utils.js";
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
-  // ── UI init runs FIRST and independently — not affected by Firebase/import errors ──
-  initDarkMode();
-  initStickyHeader();
-  // initMobileNav() moved to inline script in index.html — runs independently
-  // of ES module imports so menu always works even if Firebase/products.js fails
-  initBackToTop();
-  initScrollReveal();
+// ─── SHOP CONFIG ─────────────────────────────────────────────────────────────
+// 🔴 Replace with your actual WhatsApp number (country code without +)
+const SHOP_WHATSAPP = "919799000000";
+const SHOP_NAME = "Shree Panchmukhi Balaji Handloom";
+const SHOP_ADDRESS = "Panchori Road, Poonasar, Rajasthan - 342312";
 
-  // ── Auth & cart — safe, no heavy imports ──
-  initNavAuth();
+// ─── INIT CHECKOUT SECTION ───────────────────────────────────────────────────
+export function initCheckout() {
+  const checkoutSection = document.getElementById("checkout-section");
+  const form = document.getElementById("checkout-form");
+  if (!checkoutSection || !form) return;
 
-  // ── Search bar ──
-  try { initSearchBar(); } catch(e) { console.warn("Search init failed:", e); }
-
-  // ── Product sections — wrapped so a Firestore error doesn't kill the whole page ──
-  loadFeatured().catch(console.error);
-  loadLatest().catch(console.error);
-  loadTrending().catch(console.error);
-
-  // Category filter
-  initCategoryFilter();
-
-  // Cart badge realtime
-  listenCart((items) => {
-    const badge = document.querySelector(".cart-badge");
-    if (badge) {
-      badge.textContent = items.length > 99 ? "99+" : items.length;
-      badge.style.display = items.length > 0 ? "flex" : "none";
-    }
-  });
-
-  // Category page: ?cat=saree
-  const urlParams = new URLSearchParams(window.location.search);
-  const catParam = urlParams.get("cat");
-  if (catParam) {
-    filterByCategory(catParam);
-    document.querySelector(`[data-cat="${catParam}"]`)?.click();
-    document
-      .getElementById("trending")
-      ?.scrollIntoView({ behavior: "smooth" });
+  // Pre-fill form from user profile
+  const user = auth.currentUser;
+  if (user) {
+    getUserProfile(user.uid).then((profile) => {
+      if (!profile) return;
+      form.querySelector("#co-name").value = profile.name || user.displayName || "";
+      form.querySelector("#co-phone").value = profile.phone || "";
+      form.querySelector("#co-address").value = profile.address || "";
+      form.querySelector("#co-city").value = profile.city || "";
+      form.querySelector("#co-state").value = profile.state || "Rajasthan";
+      form.querySelector("#co-pincode").value = profile.pincode || "";
+    });
   }
 
-  // Hero 3D card — show a random featured product
-  loadHeroCard();
-});
-
-// ─── FEATURED PRODUCTS ───────────────────────────────────────────────────────
-async function loadFeatured() {
-  await renderProductGrid(
-    "featured-products",
-    () => getFeaturedProducts(8),
-    "No featured products yet. Check back soon!"
-  );
-  initScrollReveal();
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await placeOrder(form);
+  });
 }
 
-// ─── LATEST PRODUCTS ─────────────────────────────────────────────────────────
-async function loadLatest() {
-  await renderProductGrid(
-    "latest-products",
-    () => getLatestProducts(8),
-    "No new arrivals yet!"
-  );
-  initScrollReveal();
-}
+// ─── PLACE ORDER ─────────────────────────────────────────────────────────────
+async function placeOrder(form) {
+  const user = auth.currentUser;
+  if (!user) {
+    showToast("Please login to place order", "error");
+    window.location.href = "login.html?redirect=cart.html";
+    return;
+  }
 
-// ─── TRENDING (all by default) ───────────────────────────────────────────────
-let allProductsCache = [];
-
-async function loadTrending(category = "all") {
-  const container = document.getElementById("trending-products");
-  if (!container) return;
-
-  container.innerHTML = createSkeleton(8);
+  const btn = form.querySelector("button[type=submit]");
+  btn.disabled = true;
+  btn.textContent = "Placing Order…";
 
   try {
-    let products;
-    if (category === "all") {
-      if (!allProductsCache.length) {
-        allProductsCache = await getAllProducts();
-      }
-      products = allProductsCache;
-    } else {
-      products = await getProductsByCategory(category, 12);
-    }
-
-    if (!products.length) {
-      container.innerHTML = `<p class="empty-state">No products in this category yet.</p>`;
+    const items = await getCartItems();
+    if (items.length === 0) {
+      showToast("Your cart is empty", "error");
+      btn.disabled = false;
+      btn.textContent = "Place Order via WhatsApp";
       return;
     }
 
-    container.innerHTML = products.map(renderProductCard).join("");
-    bindProductCardEvents(container);
-    initScrollReveal();
-  } catch (err) {
-    console.error("Trending load error:", err);
-    container.innerHTML = `<p class="error-state">Could not load products. Please refresh.</p>`;
-  }
-}
+    const name = form.querySelector("#co-name").value.trim();
+    const phone = form.querySelector("#co-phone").value.trim();
+    const address = form.querySelector("#co-address").value.trim();
+    const city = form.querySelector("#co-city").value.trim();
+    const state = form.querySelector("#co-state").value.trim();
+    const pincode = form.querySelector("#co-pincode").value.trim();
 
-// ─── CATEGORY FILTER ─────────────────────────────────────────────────────────
-function initCategoryFilter() {
-  const btns = document.querySelectorAll(".filter-btn");
-  btns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btns.forEach((b) => {
-        b.classList.remove("btn--primary", "active");
-        b.classList.add("btn--outline");
-        b.setAttribute("aria-selected", "false");
-      });
-      btn.classList.add("btn--primary", "active");
-      btn.classList.remove("btn--outline");
-      btn.setAttribute("aria-selected", "true");
+    const fullAddress = `${address}, ${city}, ${state} - ${pincode}`;
+    const { subtotal } = calcCartTotal(items);
+    const orderId = generateOrderId();
 
-      const cat = btn.dataset.cat;
-      loadTrending(cat);
+    // ── Save to Firestore ──
+    await setDoc(doc(db, "orders", orderId), {
+      orderId,
+      userId: user.uid,
+      userName: name,
+      userEmail: user.email,
+      userPhone: phone,
+      userAddress: fullAddress,
+      items: items.map((i) => ({
+        productId: i.productId,
+        name: i.name,
+        price: i.price,
+        qty: i.qty,
+        size: i.size || "",
+        image: i.image || "",
+      })),
+      total: subtotal,
+      status: "Pending",
+      createdAt: serverTimestamp(),
     });
-  });
-}
 
-async function filterByCategory(cat) {
-  const btn = document.querySelector(`[data-cat="${cat}"]`);
-  if (btn) btn.click();
-}
+    // ── Build WhatsApp Message ──
+    const waMessage = buildWhatsAppMessage({
+      orderId,
+      name,
+      phone,
+      fullAddress,
+      items,
+      subtotal,
+    });
 
-// ─── HERO CARD ────────────────────────────────────────────────────────────────
-async function loadHeroCard() {
-  try {
-    const products = await getFeaturedProducts(1);
-    if (!products.length) return;
-    const p = products[0];
-    const nameEl = document.getElementById("hero-card-name");
-    const priceEl = document.getElementById("hero-card-price");
-    const imgEl = document.querySelector(".hero__3d-card img");
+    // ── Clear Cart ──
+    await clearCart();
 
-    if (nameEl) nameEl.textContent = p.name;
-    if (priceEl) priceEl.textContent = `₹${p.price.toLocaleString("en-IN")}`;
-    if (imgEl && p.images?.[0]) {
-      imgEl.src = p.images[0];
-      imgEl.alt = p.name;
-    }
-  } catch (_) {
-    // Fail silently — hero card is decorative
+    showToast("Order placed! Redirecting to WhatsApp… 🎉");
+
+    setTimeout(() => {
+      const url = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(waMessage)}`;
+      window.open(url, "_blank");
+      window.location.href = `orders.html?order=${orderId}`;
+    }, 1500);
+  } catch (err) {
+    console.error("Checkout error:", err);
+    showToast("Failed to place order. Please try again.", "error");
+    btn.disabled = false;
+    btn.textContent = "Place Order via WhatsApp";
   }
 }
 
-// ─── MOBILE NAV ───────────────────────────────────────────────────────────────
-function initMobileNav() {
-  const hamburger = document.getElementById("hamburger");
-  const mobileNav = document.getElementById("mobile-nav");
-  const overlay = document.getElementById("mobile-overlay");
-  const closeBtn = document.getElementById("mobile-close");
+// ─── BUILD WHATSAPP MESSAGE ───────────────────────────────────────────────────
+function buildWhatsAppMessage({ orderId, name, phone, fullAddress, items, subtotal }) {
+  const itemLines = items
+    .map(
+      (item, i) =>
+        `${i + 1}. ${item.name}${item.size ? ` (${item.size})` : ""} × ${item.qty} = ${formatPrice(item.price * item.qty)}`
+    )
+    .join("\n");
 
-  function openNav() {
-    mobileNav?.classList.add("open");
-    overlay?.classList.add("show");
-    hamburger?.classList.add("open");
-    hamburger?.setAttribute("aria-expanded", "true");
-    document.body.style.overflow = "hidden";
-  }
+  return `
+🛕 *${SHOP_NAME}*
+📍 ${SHOP_ADDRESS}
 
-  function closeNav() {
-    mobileNav?.classList.remove("open");
-    overlay?.classList.remove("show");
-    hamburger?.classList.remove("open");
-    hamburger?.setAttribute("aria-expanded", "false");
-    document.body.style.overflow = "";
-  }
+━━━━━━━━━━━━━━━━━━━
+🛍️ *NEW ORDER RECEIVED*
+━━━━━━━━━━━━━━━━━━━
 
-  hamburger?.addEventListener("click", openNav);
-  closeBtn?.addEventListener("click", closeNav);
-  overlay?.addEventListener("click", closeNav);
+📋 *Order ID:* ${orderId}
 
-  // Close on nav link tap
-  mobileNav?.querySelectorAll(".mobile-nav__link").forEach((link) => {
-    link.addEventListener("click", closeNav);
-  });
+👤 *Customer Details:*
+• Name: ${name}
+• Mobile: ${phone}
+• Address: ${fullAddress}
 
-  // Keyboard: Escape closes nav
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeNav();
-  });
-}
+🧾 *Order Items:*
+${itemLines}
 
-// ─── BACK TO TOP ─────────────────────────────────────────────────────────────
-function initBackToTop() {
-  const btn = document.getElementById("back-to-top");
-  if (!btn) return;
+━━━━━━━━━━━━━━━━━━━
+💰 *Grand Total: ${formatPrice(subtotal)}*
+━━━━━━━━━━━━━━━━━━━
 
-  window.addEventListener("scroll", () => {
-    if (window.scrollY > 400) {
-      btn.classList.add("show");
-    } else {
-      btn.classList.remove("show");
-    }
-  });
-
-  btn.addEventListener("click", () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
+_Thank you for shopping with us!_
+_Please confirm this order at the earliest._
+`.trim();
 }

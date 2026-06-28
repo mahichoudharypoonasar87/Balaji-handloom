@@ -1,286 +1,229 @@
 /**
- * responsive.css
- * Mobile-First Responsive Breakpoints
+ * app.js
+ * Home Page Logic
  * Shree Panchmukhi Balaji Handloom
- *
- * Breakpoints:
- * xs  → < 480px    (small phones)
- * sm  → 480–767px  (large phones)
- * md  → 768–1023px (tablets)
- * lg  → 1024–1279px (small desktops)
- * xl  → 1280px+    (large desktops)
  */
 
-/* ─── TABLET (≤ 1024px) ──────────────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  :root {
-    --header-h: 104px;
+import { initNavAuth } from "./auth.js";
+import { listenCart } from "./cart.js";
+import {
+  renderProductGrid,
+  getFeaturedProducts,
+  getLatestProducts,
+  getAllProducts,
+  getProductsByCategory,
+  renderProductCard,
+  bindProductCardEvents,
+  initSearchBar,
+} from "./products.js";
+import {
+  initDarkMode,
+  initScrollReveal,
+  initStickyHeader,
+  showToast,
+  createSkeleton,
+} from "./utils.js";
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  // ── UI init runs FIRST and independently — not affected by Firebase/import errors ──
+  initDarkMode();
+  initStickyHeader();
+  // initMobileNav() moved to inline script in index.html — runs independently
+  // of ES module imports so menu always works even if Firebase/products.js fails
+  initBackToTop();
+  initScrollReveal();
+
+  // ── Auth & cart — safe, no heavy imports ──
+  initNavAuth();
+
+  // ── Search bar ──
+  try { initSearchBar(); } catch(e) { console.warn("Search init failed:", e); }
+
+  // ── Product sections — wrapped so a Firestore error doesn't kill the whole page ──
+  loadFeatured().catch(console.error);
+  loadLatest().catch(console.error);
+  loadTrending().catch(console.error);
+
+  // Category filter
+  initCategoryFilter();
+
+  // Cart badge realtime
+  listenCart((items) => {
+    const badge = document.querySelector(".cart-badge");
+    if (badge) {
+      badge.textContent = items.length > 99 ? "99+" : items.length;
+      badge.style.display = items.length > 0 ? "flex" : "none";
+    }
+  });
+
+  // Category page: ?cat=saree
+  const urlParams = new URLSearchParams(window.location.search);
+  const catParam = urlParams.get("cat");
+  if (catParam) {
+    filterByCategory(catParam);
+    document.querySelector(`[data-cat="${catParam}"]`)?.click();
+    document
+      .getElementById("trending")
+      ?.scrollIntoView({ behavior: "smooth" });
   }
 
-  /* Nav */
-  .nav__links { display: none; }
-  .search-wrap { max-width: 240px; }
-  .hamburger { display: flex; }
+  // Hero 3D card — show a random featured product
+  loadHeroCard();
+});
 
-  /* Hero */
-  .hero__3d-card { display: none; }
-  .hero__content { max-width: 100%; }
-
-  /* Footer */
-  .footer__grid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-10);
-  }
-
-  /* Cart */
-  .cart-layout {
-    grid-template-columns: 1fr;
-  }
-  .cart-summary { position: static; }
+// ─── FEATURED PRODUCTS ───────────────────────────────────────────────────────
+async function loadFeatured() {
+  await renderProductGrid(
+    "featured-products",
+    () => getFeaturedProducts(8),
+    "No featured products yet. Check back soon!"
+  );
+  initScrollReveal();
 }
 
-/* ─── TABLET SMALL (≤ 768px) ─────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  :root {
-    --space-20: 3.5rem;
-    --space-16: 3rem;
-    --space-12: 2.5rem;
-  }
-
-  .container { padding-inline: var(--space-4); }
-
-  /* Search hidden on small tablet, show on icon tap */
-  .search-wrap { display: none; }
-  .search-wrap.mobile-show { display: flex; }
-
-  /* Product grid */
-  .product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--space-4);
-  }
-
-  /* Categories */
-  .categories-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-3);
-  }
-
-  /* Testimonials */
-  .testimonials-grid { grid-template-columns: 1fr; }
-
-  /* Section header */
-  .section-title { font-size: var(--text-3xl); }
-
-  /* Footer */
-  .footer__grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-8);
-  }
-  .footer__bottom { flex-direction: column; text-align: center; }
-
-  /* Hero */
-  .hero { min-height: 85svh; }
-  .hero__actions { gap: var(--space-3); }
-  .hero__desc { font-size: var(--text-base); }
-
-  /* Cart item */
-  .cart-item { flex-direction: column; }
-  .cart-item__img-wrap { width: 100%; }
-  .cart-item__img { width: 100%; height: 220px; }
-
-  /* Form rows */
-  .form-row { grid-template-columns: 1fr; }
-
-  /* Offer banner */
-  .offer-banner__item { font-size: var(--text-xs); }
-
-  /* Auth */
-  .auth-card { padding: var(--space-6); }
-
-  /* Order track */
-  .order-status-track { gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-4); }
-  .order-status-step { min-width: 70px; }
-
-  /* Checkout */
-  .checkout-section { padding: var(--space-5); }
-
-  /* Toast */
-  .toast {
-    left: var(--space-4);
-    right: var(--space-4);
-    bottom: var(--space-4);
-    max-width: none;
-  }
-
-  /* Back to top — avoid overlapping toast */
-  .back-to-top { bottom: calc(var(--space-6) + 60px); }
+// ─── LATEST PRODUCTS ─────────────────────────────────────────────────────────
+async function loadLatest() {
+  await renderProductGrid(
+    "latest-products",
+    () => getLatestProducts(8),
+    "No new arrivals yet!"
+  );
+  initScrollReveal();
 }
 
-/* ─── MOBILE (≤ 480px) ───────────────────────────────────────────────────────── */
-@media (max-width: 480px) {
-  :root {
-    --header-h: 96px;
-    --space-20: 3rem;
-    --space-16: 2.5rem;
-  }
+// ─── TRENDING (all by default) ───────────────────────────────────────────────
+let allProductsCache = [];
 
-  /* Nav — logo stays prominent, icons tighten up */
-  .nav__logo-main { font-size: var(--text-2xl); }
-  .nav__logo-sub  { font-size: 10px; }
-  .nav__actions   { gap: var(--space-2); flex-wrap: wrap; }
-  .nav__icon-btn  { width: 36px; height: 36px; font-size: 1rem; }
+async function loadTrending(category = "all") {
+  const container = document.getElementById("trending-products");
+  if (!container) return;
 
-  /* Hero */
-  .hero { min-height: 80svh; padding-inline: var(--space-4); }
-  .hero__eyebrow { font-size: 9px; letter-spacing: 0.15em; }
-  .hero__title { font-size: clamp(var(--text-3xl), 10vw, var(--text-5xl)); }
-  .hero__desc { font-size: var(--text-sm); }
-  .hero__actions {
-    flex-direction: column;
-    width: 100%;
-  }
-  .hero__actions .btn { width: 100%; justify-content: center; }
+  container.innerHTML = createSkeleton(8);
 
-  /* Product grid — 2 columns on small phones */
-  .product-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3);
-  }
+  try {
+    let products;
+    if (category === "all") {
+      if (!allProductsCache.length) {
+        allProductsCache = await getAllProducts();
+      }
+      products = allProductsCache;
+    } else {
+      products = await getProductsByCategory(category, 12);
+    }
 
-  /* Product card tighter padding */
-  .product-card__body { padding: var(--space-3); }
-  .product-card__name a { font-size: var(--text-base); }
-  .price { font-size: var(--text-xl); }
-  .product-card__actions { flex-direction: column; gap: var(--space-2); }
-  .product-card__actions .btn { width: 100%; }
+    if (!products.length) {
+      container.innerHTML = `<p class="empty-state">No products in this category yet.</p>`;
+      return;
+    }
 
-  /* Categories — 2 col */
-  .categories-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  /* Section heading */
-  .section-title { font-size: var(--text-2xl); }
-
-  /* Cart page */
-  .cart-item__img { height: 180px; }
-  .cart-item__name { font-size: var(--text-lg); }
-
-  /* Auth */
-  .auth-card { padding: var(--space-5); border-radius: var(--radius-lg); }
-  .auth-card__title { font-size: var(--text-2xl); }
-
-  /* Back to top smaller */
-  .back-to-top { width: 40px; height: 40px; font-size: 1rem; }
-
-  /* Product page */
-  .product-page-layout {
-    grid-template-columns: 1fr !important;
-  }
-  .product-thumbnails {
-    flex-direction: row !important;
-    justify-content: center;
-  }
-  .product-thumb {
-    width: 64px !important;
-    height: 64px !important;
-  }
-  .product-info { padding: var(--space-5) !important; }
-  .size-options { gap: var(--space-2) !important; }
-  .size-btn { padding: var(--space-2) var(--space-3) !important; font-size: var(--text-xs) !important; }
-
-  /* Profile */
-  .profile-layout { grid-template-columns: 1fr !important; }
-
-  /* Admin */
-  .admin-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
-  .admin-sidebar { display: none !important; }
-  .admin-main { padding: var(--space-4) !important; }
-
-  /* Checkout */
-  .checkout-section { padding: var(--space-4); }
-
-  /* Order tracking */
-  .order-status-step { min-width: 60px; }
-  .order-status-step__dot { width: 28px; height: 28px; font-size: 11px; }
-  .order-status-step__label { font-size: 9px; }
-}
-
-/* ─── VERY SMALL (≤ 360px) ───────────────────────────────────────────────────── */
-@media (max-width: 360px) {
-  .product-grid {
-    grid-template-columns: 1fr;
-  }
-  .categories-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .nav__logo-sub { display: none; }
-}
-
-/* ─── DESKTOP WIDE (≥ 1280px) ───────────────────────────────────────────────── */
-@media (min-width: 1280px) {
-  .product-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .categories-grid {
-    grid-template-columns: repeat(6, 1fr);
+    container.innerHTML = products.map(renderProductCard).join("");
+    bindProductCardEvents(container);
+    initScrollReveal();
+  } catch (err) {
+    console.error("Trending load error:", err);
+    container.innerHTML = `<p class="error-state">Could not load products. Please refresh.</p>`;
   }
 }
 
-/* ─── PRINT STYLES ───────────────────────────────────────────────────────────── */
-@media print {
-  .header,
-  .footer,
-  .back-to-top,
-  .hamburger,
-  .mobile-nav,
-  .mobile-nav__overlay,
-  .offer-banner,
-  .hero__scroll,
-  .btn--primary,
-  .wishlist-btn { display: none !important; }
+// ─── CATEGORY FILTER ─────────────────────────────────────────────────────────
+function initCategoryFilter() {
+  const btns = document.querySelectorAll(".filter-btn");
+  btns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btns.forEach((b) => {
+        b.classList.remove("btn--primary", "active");
+        b.classList.add("btn--outline");
+        b.setAttribute("aria-selected", "false");
+      });
+      btn.classList.add("btn--primary", "active");
+      btn.classList.remove("btn--outline");
+      btn.setAttribute("aria-selected", "true");
 
-  body { background: #fff; color: #000; }
-  .container { max-width: 100%; }
-  .glass-card { box-shadow: none; border: 1px solid #ddd; }
+      const cat = btn.dataset.cat;
+      loadTrending(cat);
+    });
+  });
 }
 
-/* ─── HIGH DPI / RETINA ──────────────────────────────────────────────────────── */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .nav__logo-main { -webkit-font-smoothing: antialiased; }
+async function filterByCategory(cat) {
+  const btn = document.querySelector(`[data-cat="${cat}"]`);
+  if (btn) btn.click();
 }
 
-/* ─── LANDSCAPE PHONE ────────────────────────────────────────────────────────── */
-@media (max-height: 500px) and (orientation: landscape) {
-  .hero {
-    min-height: auto;
-    padding: calc(var(--header-h) + var(--space-8)) 0 var(--space-8);
+// ─── HERO CARD ────────────────────────────────────────────────────────────────
+async function loadHeroCard() {
+  try {
+    const products = await getFeaturedProducts(1);
+    if (!products.length) return;
+    const p = products[0];
+    const nameEl = document.getElementById("hero-card-name");
+    const priceEl = document.getElementById("hero-card-price");
+    const imgEl = document.querySelector(".hero__3d-card img");
+
+    if (nameEl) nameEl.textContent = p.name;
+    if (priceEl) priceEl.textContent = `₹${p.price.toLocaleString("en-IN")}`;
+    if (imgEl && p.images?.[0]) {
+      imgEl.src = p.images[0];
+      imgEl.alt = p.name;
+    }
+  } catch (_) {
+    // Fail silently — hero card is decorative
   }
-  .hero__3d-card { display: none; }
 }
 
-/* ─── FOCUS VISIBLE (accessibility) ─────────────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid var(--clr-primary);
-  outline-offset: 3px;
-  border-radius: var(--radius-sm);
-}
-.btn:focus-visible,
-.nav__icon-btn:focus-visible {
-  outline-offset: 4px;
+// ─── MOBILE NAV ───────────────────────────────────────────────────────────────
+function initMobileNav() {
+  const hamburger = document.getElementById("hamburger");
+  const mobileNav = document.getElementById("mobile-nav");
+  const overlay = document.getElementById("mobile-overlay");
+  const closeBtn = document.getElementById("mobile-close");
+
+  function openNav() {
+    mobileNav?.classList.add("open");
+    overlay?.classList.add("show");
+    hamburger?.classList.add("open");
+    hamburger?.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeNav() {
+    mobileNav?.classList.remove("open");
+    overlay?.classList.remove("show");
+    hamburger?.classList.remove("open");
+    hamburger?.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+
+  hamburger?.addEventListener("click", openNav);
+  closeBtn?.addEventListener("click", closeNav);
+  overlay?.addEventListener("click", closeNav);
+
+  // Close on nav link tap
+  mobileNav?.querySelectorAll(".mobile-nav__link").forEach((link) => {
+    link.addEventListener("click", closeNav);
+  });
+
+  // Keyboard: Escape closes nav
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeNav();
+  });
 }
 
-/* ─── SCROLLBAR STYLING ──────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--clr-bg-2); }
-::-webkit-scrollbar-thumb {
-  background: var(--clr-border);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover { background: var(--clr-text-muted); }
+// ─── BACK TO TOP ─────────────────────────────────────────────────────────────
+function initBackToTop() {
+  const btn = document.getElementById("back-to-top");
+  if (!btn) return;
 
-/* ─── SELECTION COLOR ────────────────────────────────────────────────────────── */
-::selection {
-  background: rgba(212,175,55,0.2);
-  color: var(--clr-primary-dark);
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > 400) {
+      btn.classList.add("show");
+    } else {
+      btn.classList.remove("show");
+    }
+  });
+
+  btn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 }

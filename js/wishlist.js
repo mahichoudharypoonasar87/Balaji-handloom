@@ -1,39 +1,53 @@
 /**
- * firebase.js
- * Firebase Configuration & Initialization
- * Shree Panchmukhi Balaji Handloom
- *
- * Replace the firebaseConfig values with your own
- * from Firebase Console → Project Settings → Your Apps
+ * wishlist.js
+ * Wishlist Functions — extracted from profile.js to break circular dependency
+ * products.js → profile.js → products.js circular import was causing:
+ *   1. Products not loading (module init failure)
+ *   2. Login redirect on home page (auth side-effect firing unexpectedly)
+ *   3. Hamburger menu not working (JS crash before event listeners attached)
  */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { auth, db } from "./firebase.js";
+import {
+  doc,
+  setDoc,
+  deleteDoc,
+  getDoc,
+  getDocs,
+  collection,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showToast } from "./utils.js";
 
-// ─── YOUR FIREBASE CONFIG ────────────────────────────────────────────────────
-// Replace ALL values below with your own Firebase project config
-const firebaseConfig = {
-  apiKey: "AIzaSyAM_SxBGcVqCKzOQdBG-YhoyekprKkvvd0",
-  authDomain: "balaji-handloom.firebaseapp.com",
-  projectId: "balaji-handloom",
-  storageBucket: "balaji-handloom.firebasestorage.app",
-  messagingSenderId: "316797473264",
-  appId: "1:316797473264:web:d62ac0ff83dcd17b900d35"
-};
-// ─────────────────────────────────────────────────────────────────────────────
+export async function addToWishlist(productId) {
+  const user = auth.currentUser;
+  if (!user) {
+    showToast("Please login to add to wishlist", "error");
+    return;
+  }
+  await setDoc(
+    doc(db, "wishlist", user.uid, "items", productId),
+    { productId, addedAt: new Date() }
+  );
+  showToast("Added to wishlist ♥");
+}
 
-// Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+export async function removeFromWishlist(productId) {
+  const user = auth.currentUser;
+  if (!user) return;
+  await deleteDoc(doc(db, "wishlist", user.uid, "items", productId));
+  showToast("Removed from wishlist");
+}
 
-// Firebase Services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const googleProvider = new GoogleAuthProvider();
+export async function isWishlisted(productId) {
+  const user = auth.currentUser;
+  if (!user) return false;
+  const snap = await getDoc(doc(db, "wishlist", user.uid, "items", productId));
+  return snap.exists();
+}
 
-// Google Auth settings
-googleProvider.setCustomParameters({ prompt: "select_account" });
-
-export default app;
+export async function getWishlistItems() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(collection(db, "wishlist", user.uid, "items"));
+  return snap.docs.map((d) => d.data().productId);
+}
