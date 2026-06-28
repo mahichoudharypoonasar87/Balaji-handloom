@@ -19,6 +19,16 @@ import { showToast, formatPrice, calcDiscount, updateCartBadge, productImageHtml
 
 let unsubCart = null;
 
+// ─── WAIT FOR AUTH TO BE READY ───────────────────────────────────────────────
+// Firebase restores the logged-in session asynchronously on page load.
+// auth.currentUser is null until that finishes, even for a logged-in user.
+// Without this wait, clicking "Add to Cart" right after a page load can
+// wrongly think the user isn't logged in and bounce them to the login page.
+async function getCurrentUser() {
+  await auth.authStateReady();
+  return auth.currentUser;
+}
+
 // ─── CART REF ────────────────────────────────────────────────────────────────
 function cartRef(uid, productKey) {
   const base = collection(db, "cart", uid, "items");
@@ -27,7 +37,7 @@ function cartRef(uid, productKey) {
 
 // ─── ADD TO CART ─────────────────────────────────────────────────────────────
 export async function addToCart(product, size = "", qty = 1) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) {
     showToast("Please login to add items to cart", "error");
     setTimeout(() => (window.location.href = "login.html?redirect=index.html"), 1200);
@@ -58,7 +68,7 @@ export async function addToCart(product, size = "", qty = 1) {
 
 // ─── REMOVE FROM CART ────────────────────────────────────────────────────────
 export async function removeFromCart(key) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return;
   await deleteDoc(doc(db, "cart", user.uid, "items", key));
   showToast("Item removed from cart");
@@ -66,7 +76,7 @@ export async function removeFromCart(key) {
 
 // ─── UPDATE QUANTITY ─────────────────────────────────────────────────────────
 export async function updateCartQty(key, qty) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return;
   if (qty < 1) {
     return removeFromCart(key);
@@ -80,7 +90,7 @@ export async function updateCartQty(key, qty) {
 
 // ─── GET CART ITEMS (one-time) ───────────────────────────────────────────────
 export async function getCartItems() {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return [];
   const snap = await getDocs(cartRef(user.uid));
   return snap.docs.map((d) => ({ key: d.id, ...d.data() }));
@@ -88,7 +98,7 @@ export async function getCartItems() {
 
 // ─── CLEAR ENTIRE CART ───────────────────────────────────────────────────────
 export async function clearCart() {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return;
   const items = await getCartItems();
   const deletes = items.map((item) =>
