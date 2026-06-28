@@ -2,6 +2,10 @@
  * products.js
  * Product Listing, Filtering, Search
  * Shree Panchmukhi Balaji Handloom
+ * 
+ * FIXES:
+ * - Added fallback for queries requiring composite indexes
+ * - getProductsByCategory now handles missing index gracefully
  */
 
 import { db } from "./firebase.js";
@@ -28,7 +32,6 @@ import {
   initScrollReveal,
 } from "./utils.js";
 
-// ─── PRODUCT CARD HTML ───────────────────────────────────────────────────────
 export function renderProductCard(product) {
   const discount = calcDiscount(product.mrp, product.price);
   const mainImage = product.images?.[0] || "";
@@ -84,9 +87,7 @@ export function renderProductCard(product) {
   `;
 }
 
-// ─── BIND PRODUCT CARD EVENTS ────────────────────────────────────────────────
 export function bindProductCardEvents(container) {
-  // Image hover effect
   container.querySelectorAll(".product-card__img").forEach((img) => {
     const hover = img.dataset.hover;
     if (hover && hover !== img.src) {
@@ -95,7 +96,6 @@ export function bindProductCardEvents(container) {
     }
   });
 
-  // Add to Cart
   container.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -106,7 +106,6 @@ export function bindProductCardEvents(container) {
       try {
         const product = await getProductById(id);
         if (product) {
-          // Check if product has sizes
           if (product.sizes?.length > 0) {
             window.location.href = `product.html?id=${id}`;
             return;
@@ -122,10 +121,8 @@ export function bindProductCardEvents(container) {
     });
   });
 
-  // Wishlist
   container.querySelectorAll(".wishlist-btn").forEach(async (btn) => {
     const id = btn.dataset.id;
-    // Check if already wishlisted
     const wishlisted = await isWishlisted(id);
     if (wishlisted) {
       btn.textContent = "♥";
@@ -140,7 +137,6 @@ export function bindProductCardEvents(container) {
   });
 }
 
-// ─── GET SINGLE PRODUCT ──────────────────────────────────────────────────────
 export async function getProductById(id) {
   const { doc, getDoc } = await import(
     "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
@@ -149,7 +145,6 @@ export async function getProductById(id) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-// ─── FETCH FEATURED PRODUCTS ─────────────────────────────────────────────────
 export async function getFeaturedProducts(maxCount = 8) {
   const q = query(
     collection(db, "products"),
@@ -157,43 +152,70 @@ export async function getFeaturedProducts(maxCount = 8) {
     limit(maxCount)
   );
   const snap = await getDocs(q);
-  // Client-side filter: stock > 0
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((p) => p.stock > 0)
     .slice(0, maxCount);
 }
 
-// ─── FETCH LATEST PRODUCTS ───────────────────────────────────────────────────
 export async function getLatestProducts(maxCount = 8) {
-  const q = query(
-    collection(db, "products"),
-    orderBy("createdAt", "desc"),
-    limit(maxCount)
-  );
-  const snap = await getDocs(q);
+  let snap;
+  try {
+    const q = query(
+      collection(db, "products"),
+      orderBy("createdAt", "desc"),
+      limit(maxCount)
+    );
+    snap = await getDocs(q);
+  } catch (err) {
+    console.warn("orderBy failed, using simple query:", err.message);
+    const q = query(collection(db, "products"), limit(maxCount * 2));
+    snap = await getDocs(q);
+    const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    products.sort((a, b) => {
+      const aTime = a.createdAt?.seconds || 0;
+      const bTime = b.createdAt?.seconds || 0;
+      return bTime - aTime;
+    });
+    return products.slice(0, maxCount);
+  }
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// ─── FETCH PRODUCTS BY CATEGORY ──────────────────────────────────────────────
 export async function getProductsByCategory(category, maxCount = 12) {
-  const q = query(
-    collection(db, "products"),
-    where("category", "==", category),
-    orderBy("createdAt", "desc"),
-    limit(maxCount)
-  );
-  const snap = await getDocs(q);
+  let snap;
+  try {
+    const q = query(
+      collection(db, "products"),
+      where("category", "==", category),
+      orderBy("createdAt", "desc"),
+      limit(maxCount)
+    );
+    snap = await getDocs(q);
+  } catch (err) {
+    console.warn("Composite index missing for category query, using fallback:", err.message);
+    const q = query(
+      collection(db, "products"),
+      where("category", "==", category),
+      limit(maxCount)
+    );
+    snap = await getDocs(q);
+    const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    products.sort((a, b) => {
+      const aTime = a.createdAt?.seconds || 0;
+      const bTime = b.createdAt?.seconds || 0;
+      return bTime - aTime;
+    });
+    return products;
+  }
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// ─── FETCH ALL PRODUCTS (for search) ─────────────────────────────────────────
 export async function getAllProducts() {
   const snap = await getDocs(collection(db, "products"));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// ─── SEARCH PRODUCTS (client-side) ───────────────────────────────────────────
 export function searchProducts(products, searchQuery) {
   const q = searchQuery.toLowerCase();
   return products.filter(
@@ -204,12 +226,10 @@ export function searchProducts(products, searchQuery) {
   );
 }
 
-// ─── RENDER PRODUCT GRID ─────────────────────────────────────────────────────
 export async function renderProductGrid(containerId, fetchFn, emptyMsg = "No products found") {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  // Show skeleton
   container.innerHTML = createSkeleton(4);
 
   try {
@@ -227,7 +247,6 @@ export async function renderProductGrid(containerId, fetchFn, emptyMsg = "No pro
   }
 }
 
-// ─── INIT SEARCH BAR ─────────────────────────────────────────────────────────
 export function initSearchBar() {
   const input = document.getElementById("search-input");
   const dropdown = document.getElementById("search-dropdown");
@@ -235,7 +254,6 @@ export function initSearchBar() {
 
   let allProducts = [];
 
-  // Pre-load products for search
   getAllProducts().then((p) => (allProducts = p));
 
   input.addEventListener(
@@ -269,14 +287,12 @@ export function initSearchBar() {
     }, 300)
   );
 
-  // Close on outside click
   document.addEventListener("click", (e) => {
     if (!input.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.style.display = "none";
     }
   });
 
-  // Submit search form
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       dropdown.style.display = "none";
