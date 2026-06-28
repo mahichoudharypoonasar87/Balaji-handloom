@@ -18,8 +18,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showToast } from "./utils.js";
 
+// Firebase restores the logged-in session asynchronously on page load.
+// auth.currentUser is null until that finishes, even for a logged-in user.
+async function getCurrentUser() {
+  await auth.authStateReady();
+  return auth.currentUser;
+}
+
 export async function addToWishlist(productId) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) {
     showToast("Please login to add to wishlist", "error");
     return;
@@ -32,21 +39,21 @@ export async function addToWishlist(productId) {
 }
 
 export async function removeFromWishlist(productId) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return;
   await deleteDoc(doc(db, "wishlist", user.uid, "items", productId));
   showToast("Removed from wishlist");
 }
 
 export async function isWishlisted(productId) {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return false;
   const snap = await getDoc(doc(db, "wishlist", user.uid, "items", productId));
   return snap.exists();
 }
 
 export async function getWishlistItems() {
-  const user = auth.currentUser;
+  const user = await getCurrentUser();
   if (!user) return [];
   const snap = await getDocs(collection(db, "wishlist", user.uid, "items"));
   return snap.docs.map((d) => d.data().productId);
