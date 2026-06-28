@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Create account on Shree Panchmukhi Balaji Handloom" />
+  <title>Sign Up | Balaji Handloom</title>
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#D4AF37" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/animation.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+
+<!-- ─── MINIMAL NAV (shows profile icon when logged in) ─────────────────── -->
+<header class="header" role="banner" style="position:sticky;top:0;z-index:100;">
+  <div class="container">
+    <nav class="nav" aria-label="Main navigation" style="justify-content:space-between;">
+      <a href="index.html" class="nav__logo" aria-label="Shree Panchmukhi Balaji Handloom — Home">
+        <span class="nav__logo-main">🛕 Balaji Handloom</span>
+        <span class="nav__logo-sub">Poonasar, Rajasthan</span>
+      </a>
+      <div class="nav__actions">
+        <button class="nav__icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle Theme">🌙</button>
+        <a href="login.html" class="nav__icon-btn" id="nav-login" aria-label="Login" title="Login">🔑</a>
+        <div class="nav-profile-wrap" id="nav-profile-wrap" style="display:none; position:relative;">
+          <button class="nav-profile-badge" id="nav-profile-btn" aria-label="My Account" title="My Account">
+            <span class="nav-profile-avatar" id="nav-profile-avatar">👤</span>
+            <span class="nav-profile-name" id="nav-profile-name"></span>
+            <span style="font-size:0.6rem; opacity:0.6;">▼</span>
+          </button>
+          <div class="nav-profile-dropdown" id="nav-profile-dropdown">
+            <a href="profile.html" class="nav-profile-dropdown__item">👤 My Profile</a>
+            <a href="orders.html" class="nav-profile-dropdown__item">📦 My Orders</a>
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:4px 0;">
+            <button class="nav-profile-dropdown__item nav-profile-dropdown__item--logout" id="nav-logout">🚪 Logout</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="auth-page" id="main">
+  <div class="hero-orb hero-orb--1" aria-hidden="true"></div>
+  <div class="hero-orb hero-orb--2" aria-hidden="true"></div>
+
+  <div class="auth-card page-enter" role="main">
+    <div class="auth-card__logo">
+      <a href="index.html" aria-label="Go to home">
+        <p class="auth-card__logo-text">🛕 Balaji Handloom</p>
+        <p class="auth-card__subtitle">Poonasar, Rajasthan</p>
+      </a>
+    </div>
+
+    <h1 class="auth-card__title">Create Account</h1>
+
+    <!-- Google Signup -->
+    <button class="google-btn" id="google-signup-btn" type="button" aria-label="Sign up with Google">
+      <img src="assets/icons/google.svg" alt="" width="20" height="20" aria-hidden="true" />
+      Continue with Google
+    </button>
+
+    <div class="divider"><span>or create with email</span></div>
+
+    <!-- Signup Form -->
+    <form id="signup-form" novalidate aria-label="Signup form">
+      <div class="form-group">
+        <label class="form-label" for="name">Full Name</label>
+        <input
+          class="form-control"
+          type="text"
+          id="name"
+          name="name"
+          placeholder="Your full name"
+          autocomplete="name"
+          required
+          aria-required="true"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">Email Address</label>
+        <input
+          class="form-control"
+          type="email"
+          id="email"
+          name="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+          aria-required="true"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <div style="position:relative;">
+          <input
+            class="form-control"
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Min 6 characters"
+            autocomplete="new-password"
+            required
+            aria-required="true"
+            minlength="6"
+            style="padding-right: 3rem;"
+          />
+          <button
+            type="button"
+            id="toggle-password"
+            style="position:absolute; right:var(--space-3); top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:1rem; color:var(--clr-text-muted);"
+            aria-label="Toggle password visibility"
+          >👁</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="confirm-password">Confirm Password</label>
+        <input
+          class="form-control"
+          type="password"
+          id="confirm-password"
+          name="confirm-password"
+          placeholder="Re-enter your password"
+          autocomplete="new-password"
+          required
+          aria-required="true"
+        />
+      </div>
+
+      <div style="font-size:var(--text-xs); color:var(--clr-text-muted); margin-bottom:var(--space-5); line-height:1.5;">
+        By creating an account, you agree to our
+        <a href="#" style="color:var(--clr-primary);">Privacy Policy</a> and
+        <a href="#" style="color:var(--clr-primary);">Terms of Service</a>.
+      </div>
+
+      <button type="submit" class="btn btn--primary btn--md btn--full">
+        Create Account
+      </button>
+    </form>
+
+    <p class="auth-footer">
+      Already have an account?
+      <a href="login.html">Login</a>
+    </p>
+
+    <p class="auth-footer" style="margin-top:var(--space-3);">
+      <a href="index.html" style="color:var(--clr-text-muted); font-size:var(--text-xs);">← Back to Store</a>
+    </p>
+  </div>
+</main>
+
+<script>
+(function () {
+  document.addEventListener("click", function (e) {
+    var wrap = document.getElementById("nav-profile-wrap");
+    var btn  = document.getElementById("nav-profile-btn");
+    if (!wrap) return;
+    if (btn && btn.contains(e.target)) {
+      wrap.classList.toggle("open");
+    } else {
+      wrap.classList.remove("open");
+    }
+  });
+})();
+</script>
+
+<script type="module">
+  import { initSignupPage } from "./js/auth.js";
+  import { initDarkMode } from "./js/utils.js";
+  import { initNavAuth } from "./js/auth.js";
+  initDarkMode();
+  initNavAuth();
+  initSignupPage();
+
+  // Toggle password visibility
+  const toggle = document.getElementById("toggle-password");
+  const pass = document.getElementById("password");
+  if (toggle && pass) {
+    toggle.addEventListener("click", () => {
+      pass.type = pass.type === "password" ? "text" : "password";
+      toggle.textContent = pass.type === "password" ? "👁" : "🙈";
+    });
+  }
+</script>
+</body>
+</html>
