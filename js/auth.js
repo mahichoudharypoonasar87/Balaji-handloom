@@ -119,16 +119,31 @@ export function initLoginPage() {
   const togglePass = document.getElementById("toggle-password");
   const passInput = document.getElementById("password");
 
-  // Redirect ONLY after Firebase has fully resolved the auth state (one-time check).
-  // Using onAuthChange (persistent listener) caused a race condition:
-  // Firebase would first emit null, then the cached user — triggering a redirect
-  // even when the user was actively trying to log in or had just logged out.
-  // authStateReady() resolves exactly once with the current persisted session.
+  // Redirect if already logged in — BUT only if:
+  //   1. A "redirect" param exists in URL (user was sent here from cart/profile etc.)
+  //   2. OR sessionStorage does NOT have "user-logged-out" flag
+  //      (flag is set by logout button so we don't redirect a user who just logged out)
   auth.authStateReady().then(() => {
-    if (auth.currentUser) {
-      const redirect = new URLSearchParams(window.location.search).get("redirect") || "index.html";
-      window.location.href = redirect;
+    if (!auth.currentUser) return; // not logged in — show login page normally
+
+    const params   = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+    const justLoggedOut = sessionStorage.getItem("just-logged-out") === "1";
+
+    if (justLoggedOut) {
+      // User explicitly logged out — clear flag and stay on login page
+      sessionStorage.removeItem("just-logged-out");
+      return;
     }
+
+    if (redirect) {
+      // Sent here from cart/profile/checkout — redirect back after login check
+      window.location.href = redirect;
+      return;
+    }
+
+    // User is logged in and directly navigated to login.html — send to home
+    window.location.href = "index.html";
   });
 
   if (togglePass && passInput) {
@@ -253,38 +268,48 @@ export function initNavAuth() {
     logoutBtn.dataset.listenerAttached = "true";
     logoutBtn.addEventListener("click", async () => {
       try {
+        // Set flag so login.html knows user just logged out — prevents auto-redirect
+        sessionStorage.setItem("just-logged-out", "1");
         await logout();
         window.location.href = "index.html";
       } catch (err) {
+        sessionStorage.removeItem("just-logged-out");
         showToast("Logout failed. Try again.", "error");
       }
     });
   }
 
   onAuthChange(async (user) => {
-    const loginLink  = document.getElementById("nav-login");
-    const profileLink = document.getElementById("nav-profile");
-    const adminLink  = document.getElementById("nav-admin");
-    // mobile nav links
+    const loginLink      = document.getElementById("nav-login");
+    const profileWrap    = document.getElementById("nav-profile-wrap");
+    const profileName    = document.getElementById("nav-profile-name");
+    const profileAvatar  = document.getElementById("nav-profile-avatar");
+    const adminLink      = document.getElementById("nav-admin");
     const mobileLoginLink   = document.getElementById("mobile-login-link");
     const mobileProfileLink = document.getElementById("mobile-profile-link");
     const mobileAdminLink   = document.getElementById("mobile-admin-link");
 
     if (user) {
-      // Show profile, hide login
-      if (loginLink)  loginLink.style.display  = "none";
-      if (logoutBtn)  logoutBtn.style.display   = "flex";
-      if (profileLink) {
-        profileLink.style.display = "flex";
-        const nameEl = profileLink.querySelector(".nav__username");
-        if (nameEl) nameEl.textContent = user.displayName?.split(" ")[0] || "Profile";
+      // ── Show profile badge, hide login ──
+      if (loginLink)   loginLink.style.display   = "none";
+      if (profileWrap) profileWrap.style.display = "flex";
+
+      // Set name (first word only) and avatar initial
+      const firstName = user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "User";
+      if (profileName)   profileName.textContent = firstName;
+      if (profileAvatar) {
+        if (user.photoURL) {
+          profileAvatar.innerHTML = `<img src="${user.photoURL}" alt="${firstName}">`;
+        } else {
+          profileAvatar.textContent = firstName.charAt(0).toUpperCase();
+        }
       }
 
       // Mobile nav
       if (mobileLoginLink)   mobileLoginLink.style.display   = "none";
       if (mobileProfileLink) mobileProfileLink.style.display = "block";
 
-      // Check admin — fetch fresh from Firestore
+      // Check admin
       try {
         const profile = await getUserProfile(user.uid);
         if (profile?.isAdmin === true) {
@@ -299,11 +324,10 @@ export function initNavAuth() {
       }
 
     } else {
-      // Logged out state
+      // ── Logged out ──
       if (loginLink)   loginLink.style.display   = "flex";
-      if (logoutBtn)   logoutBtn.style.display    = "none";
-      if (profileLink) profileLink.style.display  = "none";
-      if (adminLink)   adminLink.style.display    = "none";
+      if (profileWrap) profileWrap.style.display = "none";
+      if (adminLink)   adminLink.style.display   = "none";
 
       if (mobileLoginLink)   mobileLoginLink.style.display   = "block";
       if (mobileProfileLink) mobileProfileLink.style.display = "none";
