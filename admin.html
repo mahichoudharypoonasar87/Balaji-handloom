@@ -29,14 +29,6 @@
       <p class="admin-sidebar__logo-sub">Admin Panel</p>
     </div>
 
-    <!-- Mobile Menu Toggle Button -->
-  <button class="admin-mobile-toggle" id="admin-mobile-toggle" aria-label="Toggle menu">
-    <span></span>
-    <span></span>
-    <span></span>
-  </button>
-    
-
     <nav class="admin-nav">
       <button class="admin-nav__item active" data-section="dashboard" aria-label="Dashboard">
         <span class="admin-nav__icon">📊</span>
@@ -340,20 +332,6 @@
 </div>
 
 <script type="module" src="js/admin.js"></script>
-  <script>
-// Mobile menu toggle for admin panel
-(function() {
-  const toggle = document.getElementById('admin-mobile-toggle');
-  const sidebar = document.querySelector('.admin-sidebar');
-  
-  if (toggle && sidebar) {
-    toggle.addEventListener('click', function() {
-      sidebar.classList.toggle('mobile-open');
-      toggle.classList.toggle('active');
-    });
-  }
-})();
-  </script>
   
 </body>
 </html>
